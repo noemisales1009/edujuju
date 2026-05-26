@@ -171,6 +171,11 @@ function applyProfileToUI(profile, email) {
 
   const sectorEl = document.getElementById('perfilSector')
   if (sectorEl && profile.sector) sectorEl.textContent = profile.sector
+
+  const isAdmin = profile.access_level === 'adm'
+  document.querySelectorAll('[data-page="admin"]').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none'
+  })
 }
 
 function applyCachedProfile(userId) {
