@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduJuju</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+  <style>
+    @media print {
+      body * { visibility: hidden !important; }
+      #tab-relatorios, #tab-relatorios * { visibility: visible !important; }
+      #tab-relatorios { position: fixed; inset: 0; padding: 2rem; background: #fff; }
+      #btnGerarPDF { display: none !important; }
+      .admin-tab-pane { display: block !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ======== TELA DE LOGIN ======== -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="material-symbols-outlined">school</span>
+        <span>EduJuju</span>
+      </div>
+      <p class="login-welcome">Bem-vindo à sua plataforma de aprendizado</p>
+
+      <div class="login-tabs">
+        <button class="login-tab tab-active" id="tabLogin">Entrar</button>
+        <button class="login-tab" id="tabRegister">Criar Conta</button>
+      </div>
+
+      <!-- Formulário Login -->
+      <form class="auth-form" id="loginForm">
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" placeholder="seu@email.com" required>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Senha</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" required>
+        </div>
+        <div class="form-msg" id="loginError"></div>
+        <button type="submit" class="btn-primary btn-full" id="loginBtn">Entrar</button>
+        <p class="form-footer">Não tem conta? <a href="#" id="goRegister">Cadastre-se grátis</a></p>
+      </form>
+
+      <!-- Formulário Cadastro -->
+      <form class="auth-form" id="registerForm" style="display:none">
+        <div class="form-group">
+          <label for="regName">Nome completo</label>
+          <input type="text" id="regName" placeholder="Seu nome" required>
+        </div>
+        <div class="form-group">
+          <label for="regSetor">Setor</label>
+          <select id="regSetor" required>
+            <option value="" disabled selected>Selecione seu setor</option>
+            <option>UTI PEDIÁTRICA</option>
+            <option>UTI NEONATAL</option>
+            <option>CENTRO CIRÚRGICO</option>
+            <option>SEMI INTENSIVA</option>
+            <option>UCINCA</option>
+            <option>UCINCO</option>
+            <option>CME</option>
+            <option>FARMÁCIA</option>
+            <option>NUTRIÇÃO</option>
+            <option>RECEPÇÃO</option>
+            <option>ADMISSÃO</option>
+            <option>SUPERVISÃO ADMINISTRATIVA</option>
+            <option>DIREÇÃO GERAL</option>
+            <option>DIREÇÃO CLÍNICA</option>
+            <option>GERÊNCIA DE ENFERMAGEM</option>
+            <option>CIPE</option>
+            <option>ROUPARIA</option>
+            <option>SCIRAS</option>
+            <option>NHE</option>
+            <option>NSP</option>
+            <option>QUALIDADE</option>
+            <option>NEP</option>
+            <option>CLÍNICA CIRÚRGICA</option>
+            <option>AGÊNCIA TRANSFUSIONAL</option>
+            <option>DAY CLINIC</option>
+            <option>COMISSÃO DE CURATIVO</option>
+            <option>NIR</option>
+            <option>HIGIENIZAÇÃO</option>
+            <option>LABORATÓRIO</option>
+            <option>COREMU</option>
+            <option>SERVIÇO SOCIAL</option>
+            <option>ALMOXARIFADO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="regFuncao">Função</label>
+          <select id="regFuncao" required>
+            <option value="" disabled selected>Selecione sua função</option>
+            <option>Administrador hospitalar</option>
+            <option>Agente de higienização</option>
+            <option>Analista de Qualidade</option>
+            <option>Assistente de Qualidade</option>
+            <option>Assistente social</option>
+            <option>Auxiliar de enfermagem</option>
+            <option>Biomédico / Analista clínico</option>
+            <option>Compras e suprimentos</option>
+            <option>Cozinheiro / Copeiro</option>
+            <option>Diretor hospitalar</option>
+            <option>Enfermeiro(a)</option>
+            <option>Faturista</option>
+            <option>Farmacêutico</option>
+            <option>Fisioterapeuta</option>
+            <option>Fonoaudiólogo</option>
+            <option>Gerente de enfermagem</option>
+            <option>Gerente/Coordenador de Qualidade</option>
+            <option>Lavanderia</option>
+            <option>Maqueiro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="regEmail">Email</label>
+          <input type="email" id="regEmail" placeholder="seu@email.com" required>
+        </div>
+        <div class="form-group">
+          <label for="regPassword">Senha</label>
+          <input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" required minlength="6">
+        </div>
+        <div class="form-msg" id="regError"></div>
+        <button type="submit" class="btn-primary btn-full" id="regBtn">Criar Conta</button>
+        <p class="form-footer">Já tem conta? <a href="#" id="goLogin">Fazer login</a></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======== APP SHELL (oculto até fazer login) ======== -->
+  <div id="appShell" style="display:none">
+
+  <!-- Overlay para fechar sidebar no mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Sidebar Desktop -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-avatar">
+        <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDc1U5OzqU5QQ4DZgbuYU4jIbiKOm_8VEtKEpoFCkSs8f9JdkstIc8M4II2mzft4bgAOxCseZptpDqrLwpl3NgyUDaOi2SaQPxnG5XPNKi6raMqld7iEzIEgqnOVruMrh5p6s-uPqtEeNDoaDNp8ycYswEI_yQTkJeYF01suuez28iGETizdpLybu0i4Tok-w35zdgw51QsXwOeHi5CU8FtbfKukokudq7gUVljZTffu8pxa_YwFoZz3E9yL1qNXS0mVX2yEMFTDL1I" alt="Admin">
+      </div>
+      <div>
+        <div class="sidebar-name">Admin Portal</div>
+        <div class="sidebar-role">Management Console</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="catalogo">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="sala">
+        <span class="material-symbols-outlined">menu_book</span>
+        <span>Sala de Aula</span>
+      </a>
+      <a href="#" class="nav-item" data-page="admin">
+        <span class="material-symbols-outlined">analytics</span>
+        <span>Admin</span>
+      </a>
+      <a href="#" class="nav-item" data-page="documentos">
+        <span class="material-symbols-outlined">description</span>
+        <span>Documentos</span>
+      </a>
+      <a href="#" class="nav-item" data-page="perfil">
+        <span class="material-symbols-outlined">person</span>
+        <span>Perfil</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="material-symbols-outlined">settings</span>
+        <span>Configurações</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Wrapper principal -->
+  <div class="main-wrapper">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="btn-icon menu-btn" id="menuBtn" aria-label="Abrir menu">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="topbar-brand">
+          <span class="material-symbols-outlined">school</span>
+          <span>EduJuju</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-icon theme-btn" id="themeToggle" aria-label="Alternar tema">
+          <span class="material-symbols-outlined" id="themeIcon">dark_mode</span>
+        </button>
+        <div class="user-avatar">
+          <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPQnxUn9xF8TJYzgPTq_Y1ngeyacr9hmO1dr81xN8Wbux5_XRAiTc-XZSSLYkc9Ut-R7jlR4jqw7-SKnHKYaJ7oKOjLcd9--f0bkOJGP7kJL5WtAktqDQH_aJe1_BqkkjFC97dAhJDu6Zg8r_zBXxiyaBIt3PrX8wQVMu0S8h-WqBRZ_KzfekODPSzBBT_yvopxp_t7FT1YMJQHY4SelXWRJiLNttqQBymnJoKh5ccve5ujIjTNjkM5lqNf9f7sEMEIyEEO0ff5wTk" alt="Usuário">
+        </div>
+      </div>
+    </header>
+
+    <!-- Conteúdo principal -->
+    <main class="main-content">
+
+      <!-- ======== PAGE: Catálogo de Trilhas ======== -->
+      <section class="page active" id="page-catalogo">
+        <div class="page-header">
+          <h1>Trilhas de Aprendizado</h1>
+          <p>Continue seu desenvolvimento escolhendo uma de suas trilhas focadas.</p>
+        </div>
+
+        <div class="cards-grid" id="catalogoGrid">
+          <div class="list-empty" style="grid-column:1/-1">
+            <span class="material-symbols-outlined">play_circle</span>
+            <p>Carregando vídeos...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======== PAGE: Sala de Aula ======== -->
+      <section class="page" id="page-sala">
+
+        <div class="sala-subheader">
+          <button class="btn-back" onclick="showPage('catalogo')">
+            <span class="material-symbols-outlined">arrow_back</span>
+            <span class="back-label">Voltar para Trilha</span>
+          </button>
+          <span class="sala-module-title">Módulo 3: Princípios de Design UI</span>
+          <div style="width:2rem"></div>
+        </div>
+
+        <div class="sala-layout">
+
+          <!-- Coluna principal -->
+          <div class="sala-main">
+
+            <!-- Player de vídeo -->
+            <div class="video-player" id="videoPlayer">
+              <iframe id="salaYoutubeFrame" class="sala-youtube-frame" style="display:none" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; compute-pressure"></iframe>
+              <div class="video-bg" id="videoBg"></div>
+              <div class="video-grad" id="videoGrad"></div>
+              <button class="video-play-btn" id="videoPlayBtn" aria-label="Play/Pause">
+                <span class="material-symbols-outlined icon-filled" id="videoPlayIcon">play_arrow</span>
+              </button>
+              <div class="video-controls">
+                <span class="material-symbols-outlined" id="videoCtrlIcon">pause</span>
+                <div class="video-seekbar">
+                  <div class="video-seek-fill" id="videoSeekFill"></div>
+                </div>
+                <span class="video-time" id="videoTime">00:00 / 00:00</span>
+                <span class="material-symbols-outlined">volume_up</span>
+                <span class="material-symbols-outlined">fullscreen</span>
+              </div>
+            </div>
+
+            <!-- Info da aula -->
+            <div class="surface-card">
+              <div class="lesson-tags">
+                <span class="badge badge-neutral" id="lessonNumber">Aula 1</span>
+              </div>
+              <h1 class="lesson-title" id="lessonTitle">Carregando...</h1>
+              <p class="lesson-desc" id="lessonDesc"></p>
+            </div>
+
+            <!-- Quiz -->
+            <div class="surface-card quiz-card" id="salaQuizCard" style="display:none">
+              <div class="quiz-stripe"></div>
+              <div class="quiz-header">
+                <div class="quiz-icon-wrap">
+                  <span class="material-symbols-outlined">quiz</span>
+                </div>
+                <div>
+                  <h2 class="quiz-heading">Quiz da Aula</h2>
+                  <p class="quiz-sub">Valide seu conhecimento antes de avançar</p>
+                </div>
+              </div>
+              <div class="quiz-body">
+                <p class="quiz-question" id="quizQuestion"></p>
+                <div class="quiz-options" id="quizOptions"></div>
+                <div class="quiz-feedback" id="quizFeedback"></div>
+                <div class="quiz-actions">
+                  <button class="btn-primary" id="confirmQuiz">Confirmar Resposta</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Estado vazio -->
+            <div id="salaEmpty" class="surface-card" style="display:none;text-align:center;padding:2rem;color:var(--outline)">
+              <span class="material-symbols-outlined" style="font-size:3rem;display:block;margin-bottom:.5rem">play_circle</span>
+              <p>Nenhum vídeo cadastrado.<br>Acesse o painel Admin para adicionar conteúdo.</p>
+            </div>
+
+          </div>
+
+          <!-- Sidebar da sala -->
+          <div class="sala-sidebar">
+
+            <!-- Desempenho -->
+            <div class="surface-card grade-card">
+              <h3 class="sidebar-label">Desempenho na Trilha</h3>
+              <div class="grade-chart-wrap">
+                <svg viewBox="0 0 100 100" width="160" height="160">
+                  <circle class="grade-track" cx="50" cy="50" r="42" fill="transparent" stroke-width="8"/>
+                  <circle id="gradeArc" class="grade-arc" cx="50" cy="50" r="42" fill="transparent" stroke-width="8"
+                    stroke-dasharray="264" stroke-dashoffset="264" stroke-linecap="round"
+                    transform="rotate(-90 50 50)"/>
+                </svg>
+                <div class="grade-center">
+                  <span class="grade-value" id="gradeValue">—</span>
+                  <span class="grade-label-sm">Desempenho</span>
+                </div>
+              </div>
+              <div class="grade-status">
+                <div class="grade-left">
+                  <span class="material-symbols-outlined icon-filled">military_tech</span>
+                  <span>Status</span>
+                </div>
+                <span class="grade-right" id="gradeStatusText">—</span>
+              </div>
+            </div>
+
+            <!-- Próximo passo -->
+            <div class="surface-card next-card" id="nextCard" style="display:none">
+              <p class="sidebar-label">Próximo Passo</p>
+              <h3 class="next-title" id="nextTitle"></h3>
+              <p class="next-desc" id="nextDesc"></p>
+              <button class="btn-outline next-btn" id="nextBtn">
+                Ir para Próxima Aula
+                <span class="material-symbols-outlined">arrow_forward</span>
+              </button>
+            </div>
+
+            <!-- Índice do módulo -->
+            <div class="surface-card">
+              <h3 class="sidebar-label">Conteúdo do Módulo</h3>
+              <ul class="module-list" id="salaModuleList">
+                <li class="module-item"><span style="color:var(--outline);font-size:.875rem">Carregando...</span></li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ======== PAGE: Admin ======== -->
+      <section class="page" id="page-admin">
+        <div class="admin-header">
+          <div>
+            <h1 class="page-title">Gestão de Conteúdo</h1>
+            <p class="page-subtitle">Gerencie vídeos, perguntas e acompanhe relatórios</p>
+          </div>
+        </div>
+
+        <!-- Abas -->
+        <div class="admin-tabs">
+          <button class="admin-tab admin-tab-active" data-tab="perguntas">
+            <span class="material-symbols-outlined">quiz</span>
+            Perguntas
+          </button>
+          <button class="admin-tab" data-tab="videos">
+            <span class="material-symbols-outlined">play_circle</span>
+            Vídeos
+          </button>
+          <button class="admin-tab" data-tab="documentos-admin">
+            <span class="material-symbols-outlined">description</span>
+            Documentos
+          </button>
+          <button class="admin-tab" data-tab="relatorios">
+            <span class="material-symbols-outlined">bar_chart</span>
+            Relatórios
+          </button>
+        </div>
+
+        <!-- Aba: Perguntas -->
+        <div class="admin-tab-pane active" id="tab-perguntas">
+          <div class="tab-toolbar">
+            <span class="tab-count" id="questionsCount">0 perguntas</span>
+            <button class="btn-primary" id="btnAddQuiz">
+              <span class="material-symbols-outlined">add</span>
+              Nova Pergunta
+            </button>
+          </div>
+          <div class="content-list" id="questionsList">
+            <div class="list-empty">
+              <span class="material-symbols-outlined">quiz</span>
+              <p>Nenhuma pergunta cadastrada ainda.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aba: Vídeos -->
+        <div class="admin-tab-pane" id="tab-videos">
+          <div class="tab-toolbar">
+            <span class="tab-count" id="videosCount">0 vídeos</span>
+            <button class="btn-primary" id="btnAddVideo">
+              <span class="material-symbols-outlined">add</span>
+              Novo Vídeo
+            </button>
+          </div>
+          <div class="content-list" id="videosList">
+            <div class="list-empty">
+              <span class="material-symbols-outlined">play_circle</span>
+              <p>Nenhum vídeo cadastrado ainda.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aba: Documentos Admin -->
+        <div class="admin-tab-pane" id="tab-documentos-admin">
+          <div class="tab-toolbar">
+            <span class="tab-count" id="docsCount">0 documentos</span>
+            <button class="btn-primary" id="btnAddDoc">
+              <span class="material-symbols-outlined">upload_file</span>
+              Novo Documento
+            </button>
+          </div>
+          <div class="admin-list" id="docsList">
+            <div class="list-empty">
+              <span class="material-symbols-outlined">description</span>
+              <p>Nenhum documento cadastrado ainda.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Aba: Relatórios -->
+        <div class="admin-tab-pane" id="tab-relatorios">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+            <button class="btn-primary" id="btnGerarPDF" style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.875rem;padding:0.5rem 1rem">
+              <span class="material-symbols-outlined" style="font-size:1.1rem">picture_as_pdf</span>
+              Gerar PDF
+            </button>
+          </div>
+          <div class="reports-grid" id="reportsGrid">
+            <div class="list-empty" style="grid-column:1/-1">
+              <span class="material-symbols-outlined">bar_chart</span>
+              <p>Carregando dados...</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Modal: Flipbook Viewer -->
+      <div class="modal-overlay" id="modalFlipbook" style="background:rgba(0,0,0,0.92);z-index:9999">
+        <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:1200px;padding:0 1rem">
+            <h2 id="flipbookTitle" style="color:#fff;font-size:1.1rem;font-weight:600"></h2>
+            <button id="closeFlipbook" style="background:none;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
+              <span class="material-symbols-outlined">close</span> Fechar
+            </button>
+          </div>
+          <div id="flipbookLoading" style="color:#fff;font-size:0.9rem;display:flex;align-items:center;gap:0.5rem">
+            <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
+            Carregando documento...
+          </div>
+          <div id="flipbookContainer" style="display:none"></div>
+          <div style="display:flex;align-items:center;gap:1.5rem;margin-top:0.5rem">
+            <button id="flipPrev" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:2.5rem;height:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center">
+              <span class="material-symbols-outlined">chevron_left</span>
+            </button>
+            <span id="flipPageInfo" style="color:rgba(255,255,255,0.7);font-size:0.875rem"></span>
+            <button id="flipNext" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:2.5rem;height:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center">
+              <span class="material-symbols-outlined">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: Upload Documento -->
+      <div class="modal-overlay" id="modalDoc">
+        <div class="modal-card" style="max-width:480px">
+          <div class="modal-header">
+            <h2 class="modal-title">Novo Documento</h2>
+            <button class="btn-icon" id="closeModalDoc"><span class="material-symbols-outlined">close</span></button>
+          </div>
+          <form class="modal-form" id="formDoc">
+            <div class="form-group">
+              <label for="docTitle">Título</label>
+              <input type="text" id="docTitle" placeholder="Nome do documento" required>
+            </div>
+            <div class="form-group">
+              <label for="docDesc">Descrição (opcional)</label>
+              <input type="text" id="docDesc" placeholder="Breve descrição">
+            </div>
+            <div class="form-group">
+              <label for="docCategory">Categoria (opcional)</label>
+              <input type="text" id="docCategory" placeholder="Ex: IRAS, Segurança...">
+            </div>
+            <div class="form-group">
+              <label for="docFile">Arquivo PDF</label>
+              <input type="file" id="docFile" accept=".pdf" required>
+            </div>
+            <div class="form-msg" id="docError"></div>
+            <div class="modal-actions">
+              <button type="button" class="btn-secondary" id="cancelDoc">Cancelar</button>
+              <button type="submit" class="btn-primary" id="saveDocBtn">Enviar Documento</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal: Adicionar Vídeo -->
+      <div class="modal-overlay" id="modalVideo">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h2>Novo Vídeo</h2>
+            <button class="btn-icon" id="closeModalVideo"><span class="material-symbols-outlined">close</span></button>
+          </div>
+          <form class="modal-form" id="formVideo">
+            <div class="form-group">
+              <label>Título *</label>
+              <input type="text" id="videoTitle" placeholder="Ex: Introdução ao Grid System" required>
+            </div>
+            <div class="form-group">
+              <label>Descrição</label>
+              <textarea id="videoDesc" placeholder="Breve descrição do vídeo..." rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Link do YouTube *</label>
+              <input type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
+              <div class="yt-preview" id="ytPreview"></div>
+            </div>
+            <div class="form-group">
+              <label>Tópicos</label>
+              <input type="text" id="videoTopics" placeholder="Ex: UI Design, Figma">
+            </div>
+            <div class="form-msg" id="videoError"></div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" id="cancelVideo">Cancelar</button>
+              <button type="submit" class="btn-primary" id="saveVideoBtn">Salvar Vídeo</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal: Criar Pergunta -->
+      <div class="modal-overlay" id="modalQuiz">
+        <div class="modal-card modal-card-lg">
+          <div class="modal-header">
+            <h2>Nova Pergunta</h2>
+            <button class="btn-icon" id="closeModalQuiz"><span class="material-symbols-outlined">close</span></button>
+          </div>
+          <form class="modal-form" id="formQuiz">
+            <div class="form-group">
+              <label>Pergunta *</label>
+              <textarea id="qPergunta" placeholder="Digite a pergunta aqui..." rows="3" required></textarea>
+            </div>
+            <div class="q-opts-grid">
+              <div class="form-group">
+                <label class="opt-label opt-a">A</label>
+                <input type="text" id="qOptA" placeholder="Opção A" required>
+              </div>
+              <div class="form-group">
+                <label class="opt-label opt-b">B</label>
+                <input type="text" id="qOptB" placeholder="Opção B" required>
+              </div>
+              <div class="form-group">
+                <label class="opt-label opt-c">C</label>
+                <input type="text" id="qOptC" placeholder="Opção C" required>
+              </div>
+              <div class="form-group">
+                <label class="opt-label opt-d">D</label>
+                <input type="text" id="qOptD" placeholder="Opção D" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Resposta Correta *</label>
+              <div class="correct-toggle">
+                <button type="button" class="correct-btn" data-answer="A">A</button>
+                <button type="button" class="correct-btn" data-answer="B">B</button>
+                <button type="button" class="correct-btn" data-answer="C">C</button>
+                <button type="button" class="correct-btn" data-answer="D">D</button>
+              </div>
+              <input type="hidden" id="qCorrect">
+            </div>
+            <div class="q-row">
+              <div class="form-group">
+                <label>Categoria</label>
+                <input type="text" id="qCategoria" placeholder="Ex: UX Design">
+              </div>
+              <div class="form-group">
+                <label>Vídeo relacionado</label>
+                <select id="qVideoId">
+                  <option value="">Nenhum</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Justificativa</label>
+              <textarea id="qJustificativa" placeholder="Explique por que essa resposta está correta..." rows="2"></textarea>
+            </div>
+            <div class="form-msg" id="quizError"></div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" id="cancelQuiz">Cancelar</button>
+              <button type="submit" class="btn-primary" id="saveQuizBtn">Salvar Pergunta</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ======== PAGE: Documentos ======== -->
+      <section class="page" id="page-documentos">
+        <div class="page-header">
+          <h1>Documentos</h1>
+          <p>Materiais e documentos disponibilizados pela equipe.</p>
+        </div>
+        <div class="cards-grid" id="docsGrid">
+          <div class="list-empty" style="grid-column:1/-1">
+            <span class="material-symbols-outlined">description</span>
+            <p>Nenhum documento disponível ainda.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======== PAGE: Perfil ======== -->
+      <section class="page" id="page-perfil">
+        <div class="perfil-layout">
+
+          <!-- Coluna esquerda -->
+          <div class="perfil-main">
+
+            <!-- Hero card -->
+            <div class="surface-card perfil-hero">
+              <div class="perfil-hero-glow"></div>
+              <div class="perfil-avatar-wrap">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLm8a3tWQBLyif5ptCbwTnfX6hcPkSXmoXUz0zNjTCcsBdG5Q1jhobHrisSJkUVo3iAF7TLU4nu4TABuqSARgLXg6FJLfnugZZWl3BmOMfjczbHixM7YL6avcf4b0vFdH1LjuAqE7MfYYrTkuvpU6eO2PuoQTe2kxPlr0SybTxUARtbh81MqRS-iMzBxM2GkCLqlrinBNRn0Hyz6mKroeS2jwTScU-nb1Vq42vMANomR4OWi4RP-O0AJsACxa3eXU4zeXO_OskdM-O" alt="Marina Silva">
+              </div>
+              <div class="perfil-info">
+                <h2 class="perfil-name">Marina Silva</h2>
+                <p class="perfil-role">Estudante de Design UI/UX</p>
+                <div class="perfil-tags">
+                  <span class="badge badge-done">
+                    <span class="material-symbols-outlined">verified</span>
+                    Conta Verificada
+                  </span>
+                  <span class="badge badge-neutral">
+                    <span class="material-symbols-outlined">location_on</span>
+                    <span id="perfilSector">Brasil</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Progresso -->
+            <div>
+              <h3 class="section-heading">Meu Progresso</h3>
+              <div class="stats-grid">
+                <div class="stat-card surface-card">
+                  <div class="stat-icon stat-icon-primary">
+                    <span class="material-symbols-outlined">workspace_premium</span>
+                  </div>
+                  <span class="stat-value stat-primary" id="statCert">—</span>
+                  <span class="stat-label">Trilhas Concluídas</span>
+                </div>
+                <div class="stat-card surface-card">
+                  <div class="stat-icon stat-icon-secondary">
+                    <span class="material-symbols-outlined">schedule</span>
+                  </div>
+                  <span class="stat-value stat-secondary" id="statHoras">—</span>
+                  <span class="stat-label">Horas Concluídas</span>
+                </div>
+                <div class="stat-card surface-card stat-wide">
+                  <div class="stat-icon stat-icon-tertiary">
+                    <span class="material-symbols-outlined">trending_up</span>
+                  </div>
+                  <span class="stat-value stat-tertiary" id="statAvg">—</span>
+                  <span class="stat-label">Média Geral</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Conquistas -->
+            <div>
+              <div class="achievements-header">
+                <h3 class="section-heading" style="margin-bottom:0">Conquistas</h3>
+                <button class="link-btn">Ver todas</button>
+              </div>
+              <div class="achievements-grid">
+                <div class="achievement-item surface-card">
+                  <div class="achievement-icon">
+                    <span class="material-symbols-outlined icon-filled" style="color:var(--primary);font-size:2rem">local_fire_department</span>
+                  </div>
+                  <div>
+                    <h4 class="achievement-title">Sequência de 30 Dias</h4>
+                    <p class="achievement-desc">Estudou todos os dias este mês.</p>
+                  </div>
+                </div>
+                <div class="achievement-item surface-card">
+                  <div class="achievement-icon">
+                    <span class="material-symbols-outlined icon-filled" style="color:var(--secondary);font-size:2rem">lightbulb</span>
+                  </div>
+                  <div>
+                    <h4 class="achievement-title">Mestre do Figma</h4>
+                    <p class="achievement-desc">Concluiu a trilha avançada.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Coluna direita: Configurações -->
+          <div class="perfil-sidebar">
+            <div class="surface-card settings-card">
+              <div class="settings-header">
+                <h3>Configurações da Conta</h3>
+              </div>
+              <div class="settings-list">
+                <button class="settings-item" id="btnEditPerfil">
+                  <span class="material-symbols-outlined settings-icon">person</span>
+                  <div class="settings-text">
+                    <span>Informações Pessoais</span>
+                    <small>Nome, setor, foto</small>
+                  </div>
+                  <span class="material-symbols-outlined settings-chevron">chevron_right</span>
+                </button>
+                <button class="settings-item" id="btnNotificacoes">
+                  <span class="material-symbols-outlined settings-icon">notifications</span>
+                  <div class="settings-text">
+                    <span>Notificações</span>
+                    <small>Alertas e emails</small>
+                  </div>
+                  <span class="material-symbols-outlined settings-chevron">chevron_right</span>
+                </button>
+                <button class="settings-item" id="btnEditSenha">
+                  <span class="material-symbols-outlined settings-icon">security</span>
+                  <div class="settings-text">
+                    <span>Segurança</span>
+                    <small>Senha, 2FA</small>
+                  </div>
+                  <span class="material-symbols-outlined settings-chevron">chevron_right</span>
+                </button>
+                <button class="settings-item settings-logout">
+                  <span class="material-symbols-outlined">logout</span>
+                  <div class="settings-text">
+                    <span>Sair da Conta</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Bottom Nav (mobile) -->
+  <nav class="bottom-nav" id="bottomNav">
+    <a href="#" class="bnav-item active" data-page="catalogo">
+      <span class="material-symbols-outlined">home</span>
+      <span>Home</span>
+    </a>
+    <a href="#" class="bnav-item" data-page="sala">
+      <span class="material-symbols-outlined">menu_book</span>
+      <span>Aulas</span>
+    </a>
+    <a href="#" class="bnav-item" data-page="admin">
+      <span class="material-symbols-outlined">admin_panel_settings</span>
+      <span>Admin</span>
+    </a>
+    <a href="#" class="bnav-item" data-page="perfil">
+      <span class="material-symbols-outlined">person</span>
+      <span>Perfil</span>
+    </a>
+  </nav>
+
+  </div><!-- /appShell -->
+
+  <!-- Modal: Informações Pessoais -->
+  <div class="modal-overlay" id="modalPerfil">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Informações Pessoais</h2>
+        <button class="btn-icon" id="closeModalPerfil"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <form class="modal-form" id="formPerfil">
+        <div class="form-group">
+          <label for="editNome">Nome completo</label>
+          <input type="text" id="editNome" placeholder="Seu nome" required>
+        </div>
+        <div class="form-group">
+          <label for="editSetor">Setor / Localização</label>
+          <input type="text" id="editSetor" placeholder="Ex: Direção Criativa, São Paulo...">
+        </div>
+        <div class="form-group">
+          <label for="editRole">Cargo / Função</label>
+          <input type="text" id="editRole" placeholder="Ex: Enfermeiro, Técnico de Enfermagem...">
+        </div>
+        <div class="form-group">
+          <label>Foto de perfil</label>
+          <div class="foto-upload-wrap">
+            <div class="foto-preview-circle" id="fotoPreviewCircle">
+              <img id="fotoPreview" src="" alt="Preview" style="display:none">
+              <span class="material-symbols-outlined" id="fotoPreviewIcon">person</span>
+            </div>
+            <div class="foto-upload-side">
+              <label for="editFotoFile" class="btn-secondary btn-sm foto-upload-btn">
+                <span class="material-symbols-outlined">upload</span>
+                Escolher foto
+              </label>
+              <input type="file" id="editFotoFile" accept="image/*" style="display:none">
+              <span class="foto-upload-hint">JPG, PNG ou WEBP — máx. 2 MB</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-msg" id="perfilError"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-outline" id="cancelPerfil">Cancelar</button>
+          <button type="submit" class="btn-primary" id="savePerfilBtn">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Segurança -->
+  <div class="modal-overlay" id="modalSenha">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Alterar Senha</h2>
+        <button class="btn-icon" id="closeModalSenha"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <form class="modal-form" id="formSenha">
+        <div class="form-group">
+          <label for="novaSenha">Nova senha</label>
+          <input type="password" id="novaSenha" placeholder="Mínimo 6 caracteres" minlength="6" required>
+        </div>
+        <div class="form-group">
+          <label for="confirmarSenha">Confirmar nova senha</label>
+          <input type="password" id="confirmarSenha" placeholder="Repita a nova senha" required>
+        </div>
+        <div class="form-msg" id="senhaError"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-outline" id="cancelSenha">Cancelar</button>
+          <button type="submit" class="btn-primary" id="saveSenhaBtn">Alterar Senha</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
