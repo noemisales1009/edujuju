@@ -1318,6 +1318,23 @@ ul { list-style: none; }
   gap: 0.75rem;
 }
 .tab-count { font-size: 0.875rem; color: var(--on-surface-var); font-weight: 500; }
+.tab-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.filter-select {
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--outline-var);
+  background: var(--surface-low);
+  color: var(--on-surface);
+  font-size: 0.875rem;
+  cursor: pointer;
+  min-width: 10rem;
+}
+.filter-select:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ---- 17. Question cards ---- */
 .question-card {
@@ -1491,15 +1508,15 @@ ul { list-style: none; }
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--card-bg, #1a1a2e);
+    background: var(--surface-low);
     border-right: 1px solid var(--border);
   }
   .resp-table thead th:first-child {
-    background: var(--surface, #252535);
+    background: var(--surface);
     z-index: 3;
   }
   .resp-table tbody tr:hover td:first-child {
-    background: var(--surface, #252535);
+    background: var(--surface);
   }
   .resp-bar { min-width: 60px !important; }
 }
