@@ -20,11 +20,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://unpkg.com/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
   <style>
+    @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
+
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box !important; }
 
-      /* Oculta tudo exceto a cadeia até o relatório */
-      body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      /* Oculta tudo — mostra só o relatório */
+      body { margin: 0 !important; padding: 0 !important; background: #fff !important; font-family: 'Inter', Arial, sans-serif !important; }
       #loginScreen, .sidebar, .sidebar-overlay, .topbar, .bottom-nav { display: none !important; }
       #appShell { display: block !important; }
       .main-content { margin: 0 !important; padding: 0 !important; overflow: visible !important; }
@@ -32,50 +34,94 @@
       #page-admin { display: block !important; padding: 0 !important; overflow: visible !important; }
       .page-header, .admin-tabs, .tab-toolbar, #btnGerarPDF { display: none !important; }
       .admin-tab-pane { display: none !important; }
-      #tab-relatorios { display: block !important; padding: 1.25rem 1.5rem !important; background: #fff !important; }
+      #tab-relatorios { display: block !important; padding: 0 !important; background: #fff !important; }
 
-      /* Título */
+      /* Cabeçalho do documento */
       #tab-relatorios::before {
         content: "EduJuju — Relatório de Desempenho";
-        display: block;
-        font-size: 1.15rem;
+        display: flex;
+        font-size: 1rem;
         font-weight: 700;
         color: #4f46e5;
-        border-bottom: 2px solid #4f46e5;
-        padding-bottom: 0.5rem;
-        margin-bottom: 1rem;
+        border-bottom: 2.5px solid #4f46e5;
+        padding-bottom: 0.4rem;
+        margin-bottom: 0.875rem;
       }
 
-      /* Cards resumo */
+      /* Cards resumo — linha horizontal */
       .reports-grid {
         display: grid !important;
         grid-template-columns: repeat(4,1fr) !important;
-        gap: 0.6rem !important;
-        margin-bottom: 1rem !important;
+        gap: 0.5rem !important;
+        margin-bottom: 0.875rem !important;
       }
-      .report-card { background: #f5f3ff !important; border: 1.5px solid #c4b5fd !important; border-radius: 8px !important; padding: 0.75rem !important; box-shadow: none !important; transform: none !important; }
+      .report-card {
+        background: #f5f3ff !important;
+        border: 1.5px solid #c4b5fd !important;
+        border-radius: 8px !important;
+        padding: 0.6rem 0.875rem !important;
+        box-shadow: none !important;
+        transform: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.1rem !important;
+      }
       .report-card-icon { display: none !important; }
-      .report-value { color: #4f46e5 !important; font-size: 1.5rem !important; }
-      .report-label { color: #555 !important; font-size: 0.7rem !important; }
+      .report-value { color: #4f46e5 !important; font-size: 1.4rem !important; font-weight: 700 !important; }
+      .report-label { color: #666 !important; font-size: 0.65rem !important; text-transform: uppercase !important; letter-spacing: 0.04em !important; }
 
-      /* Tabelas wrapper */
-      [style*="grid-column:1/-1"] { margin-bottom: 1rem !important; border: 1.5px solid #ddd !important; border-radius: 8px !important; overflow: hidden !important; page-break-inside: avoid !important; box-shadow: none !important; }
+      /* Bloco de tabela */
+      [style*="grid-column:1/-1"] {
+        margin-bottom: 0.875rem !important;
+        border: 1.5px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+        overflow: hidden !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        box-shadow: none !important;
+      }
 
-      /* Cabeçalho da tabela */
-      [style*="grid-column:1/-1"] > div:first-child { background: #fff !important; border-left: 4px solid #4f46e5 !important; padding: 0.5rem 0.75rem !important; border-bottom: 1px solid #ddd !important; }
-      [style*="grid-column:1/-1"] > div:first-child * { color: #4f46e5 !important; }
+      /* Cabeçalho de seção */
+      [style*="grid-column:1/-1"] > div:first-child {
+        background: #4f46e5 !important;
+        padding: 0.4rem 0.875rem !important;
+        border-bottom: none !important;
+      }
+      [style*="grid-column:1/-1"] > div:first-child * { color: #fff !important; font-size: 0.8rem !important; }
 
       /* Tabela */
-      table { width: 100% !important; border-collapse: collapse !important; font-size: 0.75rem !important; }
-      th { background: #ede9fe !important; color: #4f46e5 !important; font-size: 0.65rem !important; font-weight: 700 !important; padding: 0.35rem 0.6rem !important; border-bottom: 2px solid #c4b5fd !important; text-transform: uppercase !important; }
-      td { color: #222 !important; background: #fff !important; border-bottom: 1px solid #eee !important; padding: 0.35rem 0.6rem !important; }
+      table { width: 100% !important; border-collapse: collapse !important; font-size: 0.68rem !important; }
+      thead tr { background: #ede9fe !important; }
+      th {
+        background: #ede9fe !important;
+        color: #4f46e5 !important;
+        font-size: 0.6rem !important;
+        font-weight: 700 !important;
+        padding: 0.3rem 0.5rem !important;
+        border-bottom: 2px solid #c4b5fd !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.04em !important;
+        white-space: nowrap !important;
+      }
+      td {
+        color: #1a1a2e !important;
+        background: #fff !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        padding: 0.3rem 0.5rem !important;
+        white-space: nowrap !important;
+      }
       tr:last-child td { border-bottom: none !important; }
-      tr { page-break-inside: avoid !important; }
+      tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+      tr:nth-child(even) td { background: #fafafa !important; }
+
+      /* Badges de nota */
+      span[style*="border-radius:999px"] { border: 1px solid #ccc !important; }
 
       /* Barras de progresso */
       [style*="background:#43a047"] { background: #43a047 !important; }
       [style*="background:#fbc02d"] { background: #fbc02d !important; }
       [style*="background:#e53935"] { background: #e53935 !important; }
+      [style*="background:var(--border)"] { background: #e5e7eb !important; }
     }
   </style>
 </head>
