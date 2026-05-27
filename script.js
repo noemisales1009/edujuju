@@ -1706,9 +1706,9 @@ async function openArtigo(artigo) {
         const q = questoes[qIdx]
         quizCard.innerHTML = `
           <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem">Pergunta ${qIdx+1} de ${questoes.length}</p>
-          <p style="font-weight:600;margin-bottom:1rem">${escHtml(q.enunciado)}</p>
+          <p style="font-weight:600;margin-bottom:1rem">${escHtml(q.question)}</p>
           <div class="quiz-options" id="aqOptions">
-            ${(q.options||[]).map((opt,oi) => `
+            ${[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((opt,oi) => `
               <label class="quiz-option" data-oi="${oi}">
                 <input type="radio" name="artigo-quiz" value="${oi}">
                 <span>${escHtml(opt)}</span>
@@ -1963,7 +1963,10 @@ async function openArtigoModal(artigo = null) {
     const { data: qs } = await supabase.from('questoes_sala_de_aula')
       .select('*').eq('artigo_id', artigo.id).order('ordem', { ascending: true })
     _artigoQuestoes = (qs || []).map(q => ({
-      id: q.id, enunciado: q.enunciado, options: q.options, correct_index: q.correct_index ?? 0
+      id: q.id,
+      enunciado: q.question,
+      options: [q.option_a || '', q.option_b || '', q.option_c || '', q.option_d || ''],
+      correct_index: q.correct_index ?? 0
     }))
   }
   renderArtigoQList()
@@ -2074,7 +2077,9 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
     await supabase.from('questoes_sala_de_aula').insert(
       pergsValidas.map((q, i) => ({
         artigo_id: savedId, video_id: null,
-        enunciado: q.enunciado, options: q.options,
+        question: q.enunciado,
+        option_a: q.options[0] || '', option_b: q.options[1] || '',
+        option_c: q.options[2] || '', option_d: q.options[3] || '',
         correct_index: q.correct_index ?? 0, ordem: i + 1
       }))
     )
