@@ -860,7 +860,13 @@ window.showPage = function(pageId) {
 // ============================================
 // PERFIL — Conquistas por trilha
 // ============================================
-const TRILHA_EMOJIS = ['🏆','🎯','🚀','💎','⚡','🌟','🎖️','🔥','🎓','💡']
+const LEVEL_ICONS = {
+  gold:    'emoji_events',
+  silver:  'workspace_premium',
+  bronze:  'military_tech',
+  started: 'hourglass_top',
+  locked:  'lock',
+}
 
 async function loadPerfilConquistas() {
   const grid = document.getElementById('achievementsGrid')
@@ -923,8 +929,7 @@ async function loadPerfilConquistas() {
       level = 'started'
     }
 
-    const emoji     = TRILHA_EMOJIS[i % TRILHA_EMOJIS.length]
-    const badgeIcon = level === 'locked' ? '🔒' : emoji
+    const badgeIcon = `<span class="material-symbols-outlined icon-filled">${LEVEL_ICONS[level]}</span>`
 
     // Nota só aparece se tem dado real; senão mostra progresso em aulas
     const notaLabel = avgNota !== null
@@ -953,6 +958,27 @@ async function loadPerfilConquistas() {
         </div>
       </div>`
   })
+
+  // Atualiza stat cards de progresso
+  const completedVids = videos.filter(v => getVideoProgress(v.id) === 'completed').length
+  const totalMin  = completedVids * 15
+  const horas     = Math.floor(totalMin / 60)
+  const mins      = totalMin % 60
+  const horasText = horas > 0
+    ? `${horas}h${mins > 0 ? mins + 'm' : ''}`
+    : (mins > 0 ? `${mins}m` : '0m')
+
+  const notaVals = (notasRaw || []).map(r => Number(r.nota_pct)).filter(n => !isNaN(n))
+  const avgGeral = notaVals.length
+    ? Math.round(notaVals.reduce((s, n) => s + n, 0) / notaVals.length)
+    : null
+
+  const elCert  = document.getElementById('statCert')
+  const elHoras = document.getElementById('statHoras')
+  const elAvg   = document.getElementById('statAvg')
+  if (elCert)  elCert.textContent  = desbloqueadas
+  if (elHoras) elHoras.textContent = horasText
+  if (elAvg)   elAvg.textContent   = avgGeral !== null ? avgGeral + '%' : '—'
 
   // Atualiza contador no header
   const counter = document.getElementById('achievementsCounter')
