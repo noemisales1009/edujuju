@@ -864,7 +864,7 @@ const LEVEL_ICONS = {
   gold:    'emoji_events',
   silver:  'workspace_premium',
   bronze:  'military_tech',
-  started: 'hourglass_top',
+  started: 'rocket_launch',
   locked:  'lock',
 }
 
