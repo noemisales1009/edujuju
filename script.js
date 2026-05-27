@@ -121,17 +121,6 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
     return
   }
 
-  if (data?.user?.id) {
-    await supabase.from('users').upsert({
-      id: data.user.id,
-      email,
-      name,
-      sector: setor,
-      role: funcao,
-      access_level: 'geral'
-    }, { onConflict: 'id' })
-  }
-
   errorEl.className   = 'form-msg success'
   errorEl.textContent = '✓ Conta criada com sucesso!'
   setLoading(btn, false, 'Criar Conta')
