@@ -1869,10 +1869,10 @@ async function openArtigoModal(artigo = null) {
     placeholder: 'Escreva o conteúdo aqui... Selecione texto para formatar.',
     data: initialData,
     tools: {
-      header:     { class: Header,    inlineToolbar: true, config: { levels: [2, 3, 4], defaultLevel: 2 } },
-      list:       { class: List,      inlineToolbar: true },
+      header:     { class: window.Header,     inlineToolbar: true, config: { levels: [2, 3, 4], defaultLevel: 2 } },
+      list:       { class: window.List || window.EditorjsList, inlineToolbar: true },
       image: {
-        class: ImageTool,
+        class: window.ImageTool,
         config: {
           uploader: {
             async uploadByFile(file) {
@@ -1886,10 +1886,10 @@ async function openArtigoModal(artigo = null) {
           }
         }
       },
-      delimiter:  { class: Delimiter },
-      Marker:     { class: Marker },
-      underline:  { class: Underline },
-      inlineCode: { class: InlineCode },
+      delimiter:  { class: window.Delimiter },
+      Marker:     { class: window.Marker },
+      underline:  { class: window.Underline },
+      inlineCode: { class: window.InlineCode },
     },
   })
 
