@@ -88,6 +88,10 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
   const errorEl  = document.getElementById('regError')
   const btn      = document.getElementById('regBtn')
 
+  if (!name) {
+    errorEl.textContent = 'Preencha seu nome completo.'
+    return
+  }
   if (!setor || !funcao) {
     errorEl.textContent = 'Selecione seu setor e sua função.'
     return
@@ -104,12 +108,19 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
   })
 
   if (error) {
-    errorEl.textContent = error.message
+    const msg = error.message?.toLowerCase() || ''
+    if (msg.includes('already registered') || msg.includes('already been registered'))
+      errorEl.textContent = 'Este email já possui uma conta cadastrada.'
+    else if (msg.includes('password'))
+      errorEl.textContent = 'A senha deve ter no mínimo 6 caracteres.'
+    else if (msg.includes('invalid email'))
+      errorEl.textContent = 'Email inválido.'
+    else
+      errorEl.textContent = 'Erro ao criar conta. Tente novamente.'
     setLoading(btn, false, 'Criar Conta')
     return
   }
 
-  // Salva setor e função na tabela users (se o usuário já foi criado sem confirmação de email)
   if (data?.user?.id) {
     await supabase.from('users').upsert({
       id: data.user.id,
@@ -122,7 +133,7 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
   }
 
   errorEl.className   = 'form-msg success'
-  errorEl.textContent = '✓ Conta criada! Verifique seu email para confirmar.'
+  errorEl.textContent = '✓ Conta criada com sucesso!'
   setLoading(btn, false, 'Criar Conta')
 })
 
