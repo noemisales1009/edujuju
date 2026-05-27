@@ -256,36 +256,39 @@
       <div class="sidebar-avatar">
         <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDc1U5OzqU5QQ4DZgbuYU4jIbiKOm_8VEtKEpoFCkSs8f9JdkstIc8M4II2mzft4bgAOxCseZptpDqrLwpl3NgyUDaOi2SaQPxnG5XPNKi6raMqld7iEzIEgqnOVruMrh5p6s-uPqtEeNDoaDNp8ycYswEI_yQTkJeYF01suuez28iGETizdpLybu0i4Tok-w35zdgw51QsXwOeHi5CU8FtbfKukokudq7gUVljZTffu8pxa_YwFoZz3E9yL1qNXS0mVX2yEMFTDL1I" alt="Admin">
       </div>
-      <div>
+      <div class="sidebar-userinfo">
         <div class="sidebar-name">Admin Portal</div>
         <div class="sidebar-role">Management Console</div>
       </div>
+      <button class="btn-icon sidebar-collapse-btn" id="sidebarCollapseBtn" aria-label="Recolher menu">
+        <span class="material-symbols-outlined">keyboard_tab</span>
+      </button>
     </div>
 
     <nav class="sidebar-nav">
-      <a href="#" class="nav-item active" data-page="home">
+      <a href="#" class="nav-item active" data-page="home" data-label="Home">
         <span class="material-symbols-outlined">home</span>
-        <span>Home</span>
+        <span class="nav-label">Home</span>
       </a>
-      <a href="#" class="nav-item" data-page="sala">
+      <a href="#" class="nav-item" data-page="sala" data-label="Sala de Aula">
         <span class="material-symbols-outlined">menu_book</span>
-        <span>Sala de Aula</span>
+        <span class="nav-label">Sala de Aula</span>
       </a>
-      <a href="#" class="nav-item" data-page="admin">
+      <a href="#" class="nav-item" data-page="admin" data-label="Admin">
         <span class="material-symbols-outlined">analytics</span>
-        <span>Admin</span>
+        <span class="nav-label">Admin</span>
       </a>
-      <a href="#" class="nav-item" data-page="documentos">
+      <a href="#" class="nav-item" data-page="documentos" data-label="Documentos">
         <span class="material-symbols-outlined">description</span>
-        <span>Documentos</span>
+        <span class="nav-label">Documentos</span>
       </a>
-      <a href="#" class="nav-item" data-page="perfil">
+      <a href="#" class="nav-item" data-page="perfil" data-label="Perfil">
         <span class="material-symbols-outlined">person</span>
-        <span>Perfil</span>
+        <span class="nav-label">Perfil</span>
       </a>
-      <a href="#" class="nav-item">
-        <span class="material-symbols-outlined">settings</span>
-        <span>Configurações</span>
+      <a href="#" class="nav-item settings-logout" data-label="Sair">
+        <span class="material-symbols-outlined">logout</span>
+        <span class="nav-label">Sair</span>
       </a>
     </nav>
   </aside>

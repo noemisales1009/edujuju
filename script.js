@@ -285,7 +285,17 @@ const sidebar        = document.getElementById('sidebar')
 const sidebarOverlay = document.getElementById('sidebarOverlay')
 const menuBtn        = document.getElementById('menuBtn')
 
-if (menuBtn) menuBtn.addEventListener('click', openSidebar)
+const COLLAPSED_KEY = 'eduflow-sidebar-collapsed'
+if (localStorage.getItem(COLLAPSED_KEY) === '1') sidebar?.classList.add('collapsed')
+
+if (menuBtn) menuBtn.addEventListener('click', () => {
+  if (window.innerWidth >= 768) {
+    const isNowCollapsed = sidebar.classList.toggle('collapsed')
+    localStorage.setItem(COLLAPSED_KEY, isNowCollapsed ? '1' : '0')
+  } else {
+    openSidebar()
+  }
+})
 if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar)
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar() })
 
@@ -298,6 +308,15 @@ function closeSidebar() {
   sidebar.classList.remove('open')
   sidebarOverlay.classList.remove('visible')
   document.body.style.overflow = ''
+}
+
+// Botão interno da sidebar (se existir) também funciona
+const sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn')
+if (sidebarCollapseBtn) {
+  sidebarCollapseBtn.addEventListener('click', () => {
+    const isNowCollapsed = sidebar.classList.toggle('collapsed')
+    localStorage.setItem(COLLAPSED_KEY, isNowCollapsed ? '1' : '0')
+  })
 }
 
 // ============================================
