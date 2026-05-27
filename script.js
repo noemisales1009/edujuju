@@ -561,8 +561,19 @@ async function renderSalaQuiz(videoId) {
   const firstUnanswered = questions.findIndex(q => !_answeredMap[q.id])
   _quizIndex = firstUnanswered === -1 ? 0 : firstUnanswered
 
-  // Mostra card de conclusão se todas as perguntas já foram respondidas
-  if (firstUnanswered === -1) renderConclusaoCard(videoId)
+  // Todas as perguntas já respondidas no banco — bloqueia aula (sincroniza entre dispositivos)
+  if (firstUnanswered === -1) {
+    setVideoProgress(videoId, 'completed')
+    quizCard.style.display = 'none'
+    const playerEl = document.getElementById('videoPlayer')
+    if (playerEl) playerEl.style.display = 'none'
+    const frame = document.getElementById('salaYoutubeFrame')
+    if (frame) frame.src = ''
+    renderConclusaoCard(videoId)
+    quizResolved = true
+    updateNextBtnState()
+    return
+  }
 
   showQuizQuestion(_quizIndex)
 }
