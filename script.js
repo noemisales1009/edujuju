@@ -759,10 +759,10 @@ async function openFlipbook(fileUrl, title) {
   // Mostra loading com progresso
   loading.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;gap:1.25rem;padding:2rem">
-      <span class="material-symbols-outlined" style="font-size:3rem;color:var(--primary);animation:spin 1.5s linear infinite">progress_activity</span>
-      <p id="flipLoadMsg" style="margin:0;font-size:0.95rem;color:var(--text-secondary)">Baixando documento...</p>
-      <div style="width:220px;height:8px;background:var(--border);border-radius:99px;overflow:hidden">
-        <div id="flipProgressBar" style="height:100%;width:0%;background:var(--primary);border-radius:99px;transition:width 0.2s"></div>
+      <div class="pdf-spinner"></div>
+      <p id="flipLoadMsg" style="margin:0;font-size:0.95rem;color:rgba(255,255,255,0.8)">Baixando documento...</p>
+      <div style="width:220px;height:6px;background:rgba(255,255,255,0.15);border-radius:99px;overflow:hidden">
+        <div id="flipProgressBar" style="height:100%;width:0%;background:var(--primary);border-radius:99px;transition:width 0.3s ease"></div>
       </div>
       <span id="flipProgressPct" style="font-size:1.1rem;font-weight:700;color:var(--primary)">0%</span>
     </div>`
