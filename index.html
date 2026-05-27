@@ -450,28 +450,31 @@
       </section>
 
       <!-- Modal: Flipbook Viewer -->
-      <div class="modal-overlay" id="modalFlipbook" style="background:rgba(0,0,0,0.92);z-index:9999">
-        <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem">
-          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:1200px;padding:0 1rem">
-            <h2 id="flipbookTitle" style="color:#fff;font-size:1.1rem;font-weight:600"></h2>
-            <button id="closeFlipbook" style="background:none;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
-              <span class="material-symbols-outlined">close</span> Fechar
-            </button>
-          </div>
-          <div id="flipbookLoading" style="color:#fff;font-size:0.9rem;display:flex;align-items:center;gap:0.5rem">
+      <div class="modal-overlay" id="modalFlipbook" style="background:rgba(0,0,0,0.95);z-index:9999;flex-direction:column;padding:0">
+        <!-- Header fixo -->
+        <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);width:100%;box-sizing:border-box;border-bottom:1px solid rgba(255,255,255,0.1)">
+          <h2 id="flipbookTitle" style="color:#fff;font-size:1rem;font-weight:600;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%"></h2>
+          <button id="closeFlipbook" style="background:rgba(255,255,255,0.1);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:0.25rem;font-size:0.875rem;padding:0.4rem 0.75rem;border-radius:999px">
+            <span class="material-symbols-outlined" style="font-size:1.1rem">close</span> Fechar
+          </button>
+        </div>
+        <!-- Área de conteúdo -->
+        <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;box-sizing:border-box;padding:1rem">
+          <div id="flipbookLoading" style="color:#fff;font-size:0.9rem;display:flex;align-items:center;gap:0.5rem;margin:auto">
             <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">progress_activity</span>
             Carregando documento...
           </div>
-          <div id="flipbookContainer" style="display:none"></div>
-          <div style="display:flex;align-items:center;gap:1.5rem;margin-top:0.5rem">
-            <button id="flipPrev" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:2.5rem;height:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center">
-              <span class="material-symbols-outlined">chevron_left</span>
-            </button>
-            <span id="flipPageInfo" style="color:rgba(255,255,255,0.7);font-size:0.875rem"></span>
-            <button id="flipNext" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:2.5rem;height:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center">
-              <span class="material-symbols-outlined">chevron_right</span>
-            </button>
-          </div>
+          <div id="flipbookContainer" style="display:none;width:100%;align-items:center;justify-content:center"></div>
+        </div>
+        <!-- Footer fixo: navegação (só desktop flipbook) -->
+        <div id="flipNav" style="flex-shrink:0;display:none;align-items:center;justify-content:center;gap:1.5rem;padding:0.75rem;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,0.1)">
+          <button id="flipPrev" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:2.5rem;height:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center">
+            <span class="material-symbols-outlined">chevron_left</span>
+          </button>
+          <span id="flipPageInfo" style="color:rgba(255,255,255,0.7);font-size:0.875rem;min-width:100px;text-align:center"></span>
+          <button id="flipNext" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:50%;width:2.5rem;height:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center">
+            <span class="material-symbols-outlined">chevron_right</span>
+          </button>
         </div>
       </div>
 
