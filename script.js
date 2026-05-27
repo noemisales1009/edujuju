@@ -801,29 +801,38 @@ async function openFlipbook(fileUrl, title) {
     const flipNav = document.getElementById('flipNav')
 
     if (isMobile) {
-      // Celular/tablet pequeno: páginas empilhadas verticalmente
-      const availW = Math.min(window.innerWidth - 24, 600)
+      // Celular: uma página por vez com navegação
+      const DPR = Math.min(window.devicePixelRatio || 1, 2)
+      const availW = window.innerWidth - 16
       const vpRef = firstPage.getViewport({ scale: 1 })
-      const SCALE = availW / vpRef.width
+      const SCALE = (availW / vpRef.width) * DPR
 
-      container.style.cssText = `display:flex;flex-direction:column;align-items:center;gap:16px;width:100%`
-      flipNav.style.display = 'none'
+      let currentPageNum = 1
+      const canvas = document.createElement('canvas')
+      canvas.style.cssText = `width:100%;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.6);display:block`
+      container.style.cssText = `display:flex;flex-direction:column;align-items:center;width:100%`
+      container.appendChild(canvas)
 
-      for (let i = 1; i <= numPages; i++) {
-        if (msg) msg.textContent = `Página ${i} de ${numPages}...`
-        if (bar) bar.style.width = Math.round(i / numPages * 100) + '%'
-        if (pct) pct.textContent = Math.round(i / numPages * 100) + '%'
-        const page = await pdf.getPage(i)
+      async function renderPage(num) {
+        const page = await pdf.getPage(num)
         const viewport = page.getViewport({ scale: SCALE })
-        const canvas = document.createElement('canvas')
         canvas.width = viewport.width
         canvas.height = viewport.height
-        canvas.style.cssText = `width:100%;max-width:${availW}px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5);display:block`
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-        container.appendChild(canvas)
+        pageInfo.textContent = `Página ${num} de ${numPages}`
       }
 
-      pageInfo.textContent = `${numPages} ${numPages === 1 ? 'página' : 'páginas'}`
+      if (msg) msg.textContent = 'Preparando...'
+      await renderPage(1)
+
+      flipNav.style.display = 'flex'
+      document.getElementById('flipPrev').onclick = async () => {
+        if (currentPageNum > 1) { currentPageNum--; await renderPage(currentPageNum) }
+      }
+      document.getElementById('flipNext').onclick = async () => {
+        if (currentPageNum < numPages) { currentPageNum++; await renderPage(currentPageNum) }
+      }
+
       loading.style.display = 'none'
       container.style.display = 'flex'
     } else {
