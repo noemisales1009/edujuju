@@ -12,17 +12,15 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user
     const meta = currentUser.user_metadata || {}
-    if (meta.name) {
-      supabase.from('users').upsert({
-        id: currentUser.id,
-        email: currentUser.email,
-        name: meta.name,
-        sector: meta.sector || '',
-        role: meta.role || '',
-        access_level: 'geral'
-      }, { onConflict: 'id', ignoreDuplicates: true })
-        .then(({ error }) => { if (error) console.warn('[Auth] upsert users:', error) })
-    }
+    supabase.from('users').upsert({
+      id: currentUser.id,
+      email: currentUser.email,
+      name: meta.name || '',
+      sector: meta.sector || '',
+      role: meta.role || '',
+      access_level: 'geral'
+    }, { onConflict: 'id', ignoreDuplicates: true })
+      .then(({ error }) => { if (error) console.warn('[Auth] upsert users:', error) })
     applyCachedProfile(currentUser.id)
     showApp()
     try { await loadProfile() } catch (e) { console.warn('[Auth] loadProfile error:', e) }
@@ -825,13 +823,17 @@ async function openFlipbook(fileUrl, title) {
       container.style.cssText = `display:flex;flex-direction:column;align-items:center;width:100%`
       container.appendChild(canvas)
 
+      let isRendering = false
       async function renderPage(num) {
+        if (isRendering) return
+        isRendering = true
         const page = await pdf.getPage(num)
         const viewport = page.getViewport({ scale: SCALE })
         canvas.width = viewport.width
         canvas.height = viewport.height
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
         pageInfo.textContent = `Página ${num} de ${numPages}`
+        isRendering = false
       }
 
       if (msg) msg.textContent = 'Preparando...'
@@ -905,6 +907,8 @@ async function openFlipbook(fileUrl, title) {
       container.style.display = 'flex'
     }
   } catch (err) {
+    document.getElementById('flipNav').style.display = 'none'
+    loading.style.display = 'flex'
     loading.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;gap:1rem">
         <span class="material-symbols-outlined" style="font-size:2rem;color:#ff6b6b">error</span>
@@ -965,13 +969,19 @@ async function loadAdminDocs() {
         ${doc.description ? `<p class="ali-desc">${escHtml(doc.description)}</p>` : ''}
       </div>
       <div class="ali-actions">
-        <button class="btn-icon" title="Editar" onclick="editDoc(${doc.id}, '${escHtml(doc.title)}', '${escHtml(doc.description || '')}', '${escHtml(doc.category || '')}')">
+        <button class="btn-icon" title="Editar" data-doc-id="${doc.id}" data-action="edit">
           <span class="material-symbols-outlined">edit</span>
         </button>
-        <button class="btn-icon btn-danger" title="Excluir" onclick="deleteDoc(${doc.id}, '${escHtml(doc.file_name || '')}')">
+        <button class="btn-icon btn-danger" title="Excluir" data-doc-id="${doc.id}" data-action="delete">
           <span class="material-symbols-outlined">delete</span>
         </button>
       </div>`
+    div.querySelector('[data-action="edit"]').addEventListener('click', () => {
+      editDoc(doc.id, doc.title, doc.description || '', doc.category || '')
+    })
+    div.querySelector('[data-action="delete"]').addEventListener('click', () => {
+      deleteDoc(doc.id, doc.file_name || '')
+    })
     listEl.appendChild(div)
   })
 }
