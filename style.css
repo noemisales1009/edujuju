@@ -1307,6 +1307,36 @@ ul { list-style: none; }
 }
 .modal-header h2 { font-size: 1.125rem; font-weight: 700; }
 
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--outline-var);
+}
+
+/* Chips de seleção do PDF */
+.pdf-chips {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+}
+.pdf-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.45rem 0.875rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--outline-var);
+  background: var(--surface-high);
+  color: var(--on-surface-var);
+  font-size: 0.8rem; font-weight: 500;
+  cursor: pointer;
+  transition: all var(--ease);
+}
+.pdf-chip .material-symbols-outlined { font-size: 1rem; }
+.pdf-chip:hover { border-color: var(--primary); color: var(--primary); }
+.pdf-chip.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .modal-form {
   display: flex;
   flex-direction: column;

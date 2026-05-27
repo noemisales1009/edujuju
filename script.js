@@ -2532,9 +2532,33 @@ async function loadReports() {
   `
 }
 
-document.getElementById('btnGerarPDF')?.addEventListener('click', async () => {
+// Chips do modal PDF fazem toggle no checkbox oculto
+document.querySelectorAll('.pdf-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const chk = document.getElementById(chip.dataset.chk)
+    if (!chk) return
+    chk.checked = !chk.checked
+    chip.classList.toggle('active', chk.checked)
+  })
+})
+
+// Abre modal de seleção do PDF
+document.getElementById('btnGerarPDF')?.addEventListener('click', () => {
+  document.getElementById('modalPDF').classList.add('open')
+})
+document.getElementById('closeModalPDF')?.addEventListener('click',  () => document.getElementById('modalPDF').classList.remove('open'))
+document.getElementById('cancelModalPDF')?.addEventListener('click', () => document.getElementById('modalPDF').classList.remove('open'))
+
+document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
+  const incResumo   = document.getElementById('pdfChkResumo').checked
+  const incSetor    = document.getElementById('pdfChkSetor').checked
+  const incRanking  = document.getElementById('pdfChkRanking').checked
+  const incDuvidas  = document.getElementById('pdfChkDuvidas').checked
+
+  document.getElementById('modalPDF').classList.remove('open')
+
   const btn = document.getElementById('btnGerarPDF')
-  btn.textContent = 'Gerando...'
+  btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.1rem;animation:spin 1s linear infinite">progress_activity</span> Gerando...'
   btn.disabled = true
 
   try {
@@ -2545,7 +2569,8 @@ document.getElementById('btnGerarPDF')?.addEventListener('click', async () => {
       { count: cResults },
       { data: porUsuarioTrilha },
       { data: porSetorTrilha },
-      { data: trilhas }
+      { data: trilhas },
+      { data: principais_duvidas }
     ] = await Promise.all([
       supabase.from('videos').select('*', { count: 'exact', head: true }),
       supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
@@ -2553,7 +2578,8 @@ document.getElementById('btnGerarPDF')?.addEventListener('click', async () => {
       supabase.from('respostas').select('*', { count: 'exact', head: true }),
       supabase.from('v_desempenho_usuario_trilha').select('*'),
       supabase.from('v_desempenho_setor_trilha').select('*'),
-      supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true })
+      supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
+      supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(50)
     ])
 
     const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -2685,26 +2711,63 @@ document.getElementById('btnGerarPDF')?.addEventListener('click', async () => {
   </div>
 
   <!-- Resumo -->
-  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem" class="no-break">
+  ${incResumo ? `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem" class="no-break">
     ${statCard('🎬', cVideos || 0, 'Trilhas', '#4f46e5')}
     ${statCard('❓', cQuestions || 0, 'Perguntas', '#7c3aed')}
     ${statCard('👥', cUsers || 0, 'Alunos', '#0f766e')}
     ${statCard('✅', cResults || 0, 'Respostas', '#b45309')}
-  </div>
+  </div>` : ''}
 
   <!-- Desempenho por Setor -->
-  ${sectionCard('Desempenho por Setor — todas as trilhas', '🏢',
+  ${incSetor ? sectionCard('Desempenho por Setor — todas as trilhas', '🏢',
     setorBodyRows
       ? `<table><thead><tr><th style="${thStyle}">Setor</th>${setorHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${setorBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
-  )}
+  ) : ''}
 
   <!-- Ranking Individual -->
-  ${sectionCard('Ranking Individual — desempenho por trilha', '🏆',
+  ${incRanking ? sectionCard('Ranking Individual — desempenho por trilha', '🏆',
     rankBodyRows
       ? `<table><thead><tr><th style="${thCStyle}">#</th><th style="${thStyle}">Nome</th>${rankHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${rankBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
-  )}
+  ) : ''}
+
+  <!-- Principais Dúvidas -->
+  ${incDuvidas ? sectionCard('Principais Dúvidas — perguntas com maior taxa de erro', '🧠', (() => {
+    if (!principais_duvidas?.length) return `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda</p>`
+    const grupos = {}
+    for (const d of principais_duvidas) {
+      const key = d.trilha || '—'
+      if (!grupos[key]) grupos[key] = []
+      grupos[key].push(d)
+    }
+    const thGrp = 'padding:0.5rem 0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#4f46e5;background:#eef2ff;border-bottom:1px solid #e2e8f0'
+    const rows = Object.entries(grupos).map(([trilha, itens]) => {
+      const header = `<tr><td colspan="4" style="${thGrp}">${esc(trilha)}</td></tr>`
+      const qRows = itens.map((d, i) => {
+        const pct = Number(d.pct_erro) || 0
+        const [bg, color] = pct >= 70 ? ['#fee2e2','#991b1b'] : pct >= 40 ? ['#fef3c7','#92400e'] : ['#d1fae5','#065f46']
+        const errBadge = `<span style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.73rem;font-weight:700;background:${bg};color:${color}">${pct}%</span>`
+        const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
+        return `<tr style="background:${rowBg}">
+          <td style="${tdStyle}">${esc(d.pergunta || '—')}</td>
+          <td style="${tdCStyle}">${d.total_respostas ?? '—'}</td>
+          <td style="${tdCStyle}">${d.total_erros ?? '—'}</td>
+          <td style="${tdCStyle}">${errBadge}</td>
+        </tr>`
+      }).join('')
+      return header + qRows
+    }).join('')
+    return `<table>
+      <thead><tr>
+        <th style="${thStyle}">Pergunta</th>
+        <th style="${thCStyle}">Respostas</th>
+        <th style="${thCStyle}">Erros</th>
+        <th style="${thCStyle}">% Erro</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`
+  })()) : ''}
 
   <!-- Rodapé -->
   <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">

@@ -994,6 +994,45 @@
   </div><!-- /appShell -->
 
   <!-- Modal: Informações Pessoais -->
+  <!-- Modal PDF -->
+  <div class="modal-overlay" id="modalPDF">
+    <div class="modal-card" style="max-width:26rem">
+      <div class="modal-header">
+        <h2>Gerar PDF</h2>
+        <button class="btn-icon" id="closeModalPDF"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div style="padding:1.25rem 1.5rem">
+        <p style="font-size:0.875rem;color:var(--on-surface-var);margin-bottom:1rem">Selecione as seções:</p>
+        <div class="pdf-chips">
+          <button type="button" class="pdf-chip active" data-chk="pdfChkResumo">
+            <span class="material-symbols-outlined">bar_chart</span>Resumo Geral
+          </button>
+          <button type="button" class="pdf-chip active" data-chk="pdfChkSetor">
+            <span class="material-symbols-outlined">domain</span>Desempenho por Setor
+          </button>
+          <button type="button" class="pdf-chip active" data-chk="pdfChkRanking">
+            <span class="material-symbols-outlined">leaderboard</span>Ranking Individual
+          </button>
+          <button type="button" class="pdf-chip active" data-chk="pdfChkDuvidas">
+            <span class="material-symbols-outlined">psychology</span>Principais Dúvidas
+          </button>
+        </div>
+        <!-- checkboxes ocultos usados pelo JS -->
+        <input type="checkbox" id="pdfChkResumo"  checked style="display:none">
+        <input type="checkbox" id="pdfChkSetor"   checked style="display:none">
+        <input type="checkbox" id="pdfChkRanking" checked style="display:none">
+        <input type="checkbox" id="pdfChkDuvidas" checked style="display:none">
+      </div>
+      <div class="modal-footer">
+        <button class="btn-outline" id="cancelModalPDF">Cancelar</button>
+        <button class="btn-primary" id="confirmarPDF">
+          <span class="material-symbols-outlined" style="font-size:1rem">picture_as_pdf</span>
+          Gerar PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="modalPerfil">
     <div class="modal-card">
       <div class="modal-header">
