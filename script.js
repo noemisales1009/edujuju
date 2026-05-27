@@ -1096,29 +1096,6 @@ async function loadPerfilConquistas() {
       </div>`
   }).join('')
 
-  // --- Confetti para conquistas recém-desbloqueadas ---
-  const UNLOCKED_KEY = `eduflow-unlocked-${currentUser.id}`
-  let prevUnlocked
-  try { prevUnlocked = new Set(JSON.parse(localStorage.getItem(UNLOCKED_KEY) || '[]')) }
-  catch { prevUnlocked = new Set() }
-
-  const nowUnlocked = new Set(['__init__'])
-  for (const [nome, ids] of trilhas) {
-    if (ids.every(id => getVideoProgress(id) === 'completed')) nowUnlocked.add('t:' + nome)
-  }
-  for (const s of SPECIALS) {
-    if (s.unlocked) nowUnlocked.add('s:' + s.id)
-  }
-
-  const isFirstLoad = !prevUnlocked.has('__init__')
-  localStorage.setItem(UNLOCKED_KEY, JSON.stringify([...nowUnlocked]))
-
-  if (!isFirstLoad) {
-    const newOnes = [...nowUnlocked].filter(k => k !== '__init__' && !prevUnlocked.has(k))
-    if (newOnes.length > 0) {
-      newOnes.forEach((_, i) => setTimeout(() => fireConfetti(newOnes.length > 1 && i === newOnes.length - 1), i * 700))
-    }
-  }
 }
 
 // ============================================
