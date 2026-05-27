@@ -1292,6 +1292,12 @@ ul { list-style: none; }
   white-space: nowrap;
   flex-shrink: 0;
 }
+@media (max-width: 600px) {
+  .admin-tabs { justify-content: space-between; }
+  .admin-tab  { flex: 1; justify-content: center; padding: 0.6rem 0.25rem; flex-direction: column; gap: 0.15rem; font-size: 0.65rem; }
+  .admin-tab .material-symbols-outlined { font-size: 1.2rem; }
+  .admin-tab span:not(.material-symbols-outlined) { display: block; }
+}
 .admin-tab:hover { color: var(--on-surface); }
 .admin-tab.admin-tab-active {
   background: var(--surface-low);
