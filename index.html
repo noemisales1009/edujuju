@@ -422,6 +422,15 @@
           <p id="artigoDescricaoEl" style="color:var(--text-secondary);margin-bottom:1.5rem"></p>
           <div id="artigoConteudoEl" class="artigo-render"></div>
 
+          <!-- Quiz do artigo -->
+          <div id="artigoQuizWrap" style="display:none;margin-top:2rem">
+            <h3 style="font-size:1rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem">
+              <span class="material-symbols-outlined icon-filled" style="color:var(--primary)">quiz</span>
+              Perguntas
+            </h3>
+            <div id="artigoQuizCard" class="quiz-card"></div>
+          </div>
+
           <div style="margin-top:2.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem">
             <button id="artigoConcluirBtn" class="btn-primary" style="width:100%;max-width:360px;padding:0.875rem">
               <span class="material-symbols-outlined">check_circle</span>
@@ -820,6 +829,17 @@
               <label>Conteúdo *</label>
               <div id="artigoEditor" class="artigo-editor-wrap"></div>
             </div>
+            <!-- Perguntas do artigo -->
+            <div class="form-group">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+                <label style="margin:0">Perguntas <span style="font-size:0.75rem;color:var(--text-secondary)">(opcional)</span></label>
+                <button type="button" class="btn-outline" id="btnAddArtigoQ" style="font-size:0.75rem;padding:0.25rem 0.75rem">
+                  <span class="material-symbols-outlined" style="font-size:1rem">add</span> Adicionar
+                </button>
+              </div>
+              <div id="artigoQList" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+            </div>
+
             <div class="form-group" style="flex-direction:row;align-items:center;gap:0.75rem">
               <input type="checkbox" id="artigoVisivel" checked style="width:1.1rem;height:1.1rem;cursor:pointer">
               <label for="artigoVisivel" style="margin:0;cursor:pointer">Artigo visível para os alunos</label>

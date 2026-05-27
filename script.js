@@ -336,7 +336,7 @@ if (confirmBtn) confirmBtn.addEventListener('click', handleQuiz)
 
 async function loadSalaDeAula() {
   const [{ data: videos }, { data: todasRespostas }] = await Promise.all([
-    supabase.from('videos').select('*').order('ordem', { ascending: true }),
+    supabase.from('videos').select('id, title, description, youtube_url, topics, ordem, texto_aula').order('ordem', { ascending: true }),
     currentUser
       ? supabase.from('respostas').select('question_id, is_correct, chosen_index').eq('user_id', currentUser.id)
       : Promise.resolve({ data: [] })
@@ -1647,69 +1647,111 @@ function blocksToHtml(blocks = []) {
   }).join('')
 }
 
-function openArtigo(artigo) {
+async function openArtigo(artigo) {
   document.getElementById('artigoTituloEl').textContent    = artigo.titulo || ''
   document.getElementById('artigoDescricaoEl').textContent = artigo.descricao || ''
   const conteudoEl = document.getElementById('artigoConteudoEl')
   if (artigo.conteudo_blocos?.blocks?.length) {
     conteudoEl.innerHTML = blocksToHtml(artigo.conteudo_blocos.blocks)
+  } else if (artigo.conteudo) {
+    conteudoEl.innerHTML = `<p style="white-space:pre-wrap">${escHtml(artigo.conteudo)}</p>`
   } else {
-    conteudoEl.innerHTML = `<p style="white-space:pre-wrap">${escHtml(artigo.conteudo || '')}</p>`
+    conteudoEl.innerHTML = ''
   }
-  document.getElementById('artigoPageTopics').textContent  = artigo.topics || ''
+  document.getElementById('artigoPageTopics').textContent = artigo.topics || ''
   const imgWrap = document.getElementById('artigoImagemWrap')
   const imgEl   = document.getElementById('artigoImagemEl')
-  if (artigo.imagem_url) {
-    imgEl.src = artigo.imagem_url
-    imgWrap.style.display = ''
-  } else {
-    imgWrap.style.display = 'none'
-  }
+  if (artigo.imagem_url) { imgEl.src = artigo.imagem_url; imgWrap.style.display = '' }
+  else imgWrap.style.display = 'none'
 
-  // Botão concluir
-  const concluirBtn  = document.getElementById('artigoConcluirBtn')
-  const proximoWrap  = document.getElementById('artigoProximoWrap')
-  const proximoBtn   = document.getElementById('artigoProximoBtn')
-  const proximoTit   = document.getElementById('artigoProximoTitulo')
-  const jaConcluido  = getArtigoProgress(artigo.id) === 'completed'
+  const concluirBtn = document.getElementById('artigoConcluirBtn')
+  const proximoWrap = document.getElementById('artigoProximoWrap')
+  const proximoBtn  = document.getElementById('artigoProximoBtn')
+  const proximoTit  = document.getElementById('artigoProximoTitulo')
+  const quizWrap    = document.getElementById('artigoQuizWrap')
+  const quizCard    = document.getElementById('artigoQuizCard')
+  const jaConcluido = getArtigoProgress(artigo.id) === 'completed'
+
+  function mostrarProximo() {
+    const idx    = _catalogItems.findIndex(c => c._tipo === 'artigo' && c.id === artigo.id)
+    const proximo = _catalogItems[idx + 1]
+    if (proximo) {
+      proximoTit.textContent = proximo._tipo === 'artigo' ? proximo.titulo : proximo.title
+      proximoWrap.style.display = ''
+      proximoBtn.onclick = () => proximo._tipo === 'artigo' ? openArtigo(proximo) : openVideoSala(proximo)
+    } else proximoWrap.style.display = 'none'
+  }
 
   function marcarConcluido() {
     setArtigoProgress(artigo.id, 'completed')
     concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Concluído!'
-    concluirBtn.disabled = true
-    concluirBtn.style.opacity = '0.7'
-
-    // Próxima trilha
-    const idx   = _catalogItems.findIndex(c => c._tipo === 'artigo' && c.id === artigo.id)
-    const proximo = _catalogItems[idx + 1]
-    if (proximo) {
-      const proxTitulo = proximo._tipo === 'artigo' ? proximo.titulo : proximo.title
-      proximoTit.textContent = proxTitulo
-      proximoWrap.style.display = ''
-      proximoBtn.onclick = () => proximo._tipo === 'artigo' ? openArtigo(proximo) : openVideoSala(proximo)
-    } else {
-      proximoWrap.style.display = 'none'
-    }
+    concluirBtn.disabled = true; concluirBtn.style.opacity = '0.7'
+    mostrarProximo()
   }
 
-  if (jaConcluido) {
-    concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Concluído!'
-    concluirBtn.disabled = true
-    concluirBtn.style.opacity = '0.7'
-    const idx   = _catalogItems.findIndex(c => c._tipo === 'artigo' && c.id === artigo.id)
-    const proximo = _catalogItems[idx + 1]
-    if (proximo) {
-      const proxTitulo = proximo._tipo === 'artigo' ? proximo.titulo : proximo.title
-      proximoTit.textContent = proxTitulo
-      proximoWrap.style.display = ''
-      proximoBtn.onclick = () => proximo._tipo === 'artigo' ? openArtigo(proximo) : openVideoSala(proximo)
+  // Carrega perguntas do artigo
+  const { data: questoes } = await supabase.from('questoes_sala_de_aula')
+    .select('*').eq('artigo_id', artigo.id).order('ordem', { ascending: true })
+
+  if (questoes?.length) {
+    quizWrap.style.display = ''
+    concluirBtn.style.display = 'none'
+    if (jaConcluido) {
+      quizCard.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--success)"><span class="material-symbols-outlined icon-filled" style="font-size:2.5rem">check_circle</span><p style="font-weight:700;margin-top:0.5rem">Já concluído!</p></div>`
+      mostrarProximo()
+    } else {
+      let qIdx = 0
+      const answeredMap = {}
+      function renderQ() {
+        const q = questoes[qIdx]
+        quizCard.innerHTML = `
+          <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem">Pergunta ${qIdx+1} de ${questoes.length}</p>
+          <p style="font-weight:600;margin-bottom:1rem">${escHtml(q.enunciado)}</p>
+          <div class="quiz-options" id="aqOptions">
+            ${(q.options||[]).map((opt,oi) => `
+              <label class="quiz-option" data-oi="${oi}">
+                <input type="radio" name="artigo-quiz" value="${oi}">
+                <span>${escHtml(opt)}</span>
+              </label>`).join('')}
+          </div>
+          <div class="quiz-feedback" id="aqFeedback"></div>
+          <button class="btn-primary" id="aqConfirm" style="margin-top:1rem;width:100%">Confirmar Resposta</button>`
+
+        document.getElementById('aqConfirm').addEventListener('click', () => {
+          const chosen = quizCard.querySelector('input[name="artigo-quiz"]:checked')
+          if (!chosen) return
+          const oi = +chosen.value
+          const isCorrect = oi === (q.correct_index ?? 0)
+          answeredMap[q.id] = isCorrect
+          const labels = quizCard.querySelectorAll('.quiz-option')
+          labels.forEach(l => { l.style.pointerEvents = 'none' })
+          labels[q.correct_index ?? 0]?.classList.add('correct')
+          if (!isCorrect) labels[oi]?.classList.add('wrong')
+          const fb = document.getElementById('aqFeedback')
+          fb.className = `quiz-feedback ${isCorrect ? 'ok' : 'err'}`
+          fb.innerHTML = isCorrect ? '<strong>✓ Correto!</strong>' : '<strong>✗ Incorreta.</strong> A correta está em verde.'
+          document.getElementById('aqConfirm').textContent = qIdx < questoes.length - 1 ? 'Próxima' : 'Concluir'
+          document.getElementById('aqConfirm').onclick = () => {
+            if (qIdx < questoes.length - 1) { qIdx++; renderQ() }
+            else { marcarConcluido(); quizWrap.style.display = 'none'; concluirBtn.style.display = '' }
+          }
+        })
+      }
+      renderQ()
     }
   } else {
-    concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Marcar como Concluído'
-    concluirBtn.disabled = false
-    concluirBtn.style.opacity = ''
-    proximoWrap.style.display = 'none'
-    concluirBtn.onclick = marcarConcluido
+    quizWrap.style.display = 'none'
+    concluirBtn.style.display = ''
+    if (jaConcluido) {
+      concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Concluído!'
+      concluirBtn.disabled = true; concluirBtn.style.opacity = '0.7'
+      mostrarProximo()
+    } else {
+      concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Marcar como Concluído'
+      concluirBtn.disabled = false; concluirBtn.style.opacity = ''
+      proximoWrap.style.display = 'none'
+      concluirBtn.onclick = marcarConcluido
+    }
   }
 
   window.showPage('artigo')
@@ -1834,6 +1876,7 @@ window.editArtigo = editArtigo
 
 let editingArtigoId  = null
 let _artigoImagemUrl = null
+let _artigoQuestoes  = []
 
 document.getElementById('btnAddArtigo').addEventListener('click', () => openArtigoModal())
 document.getElementById('closeModalArtigo').addEventListener('click', closeArtigoModal)
@@ -1852,9 +1895,52 @@ document.getElementById('artigoImagemFile').addEventListener('change', e => {
 
 let _artigoEditor = null
 
+function renderArtigoQList() {
+  const listEl = document.getElementById('artigoQList')
+  if (!listEl) return
+  if (!_artigoQuestoes.length) {
+    listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary);padding:0.25rem 0">Nenhuma pergunta adicionada.</p>'
+    return
+  }
+  listEl.innerHTML = _artigoQuestoes.map((q, qi) => `
+    <div class="artigo-q-card surface-card" style="padding:0.75rem;gap:0.5rem;display:flex;flex-direction:column" data-qi="${qi}">
+      <div style="display:flex;align-items:flex-start;gap:0.5rem">
+        <span style="font-size:0.7rem;font-weight:700;color:var(--primary);padding-top:0.6rem;flex-shrink:0">Q${qi+1}</span>
+        <textarea class="artigo-q-enunciado" rows="2" placeholder="Texto da pergunta..." style="flex:1;resize:vertical;padding:0.4rem 0.5rem;font-size:0.85rem;border:1px solid var(--outline-var);border-radius:var(--r-sm);background:var(--input-bg);color:var(--on-surface)">${escHtml(q.enunciado || '')}</textarea>
+        <button type="button" class="btn-icon artigo-q-del" data-qi="${qi}" style="color:var(--error);flex-shrink:0">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.3rem;padding-left:1.5rem">
+        ${[0,1,2,3].map(oi => `
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;cursor:pointer">
+            <input type="radio" name="aq-correct-${qi}" value="${oi}" ${(q.correct_index ?? 0) === oi ? 'checked' : ''} style="cursor:pointer">
+            <input type="text" class="artigo-q-opt" data-qi="${qi}" data-oi="${oi}"
+              placeholder="Opção ${oi+1}" value="${escHtml(q.options?.[oi] || '')}"
+              style="flex:1;padding:0.3rem 0.5rem;font-size:0.8rem;border:1px solid var(--outline-var);border-radius:var(--r-sm);background:var(--input-bg);color:var(--on-surface)">
+          </label>`).join('')}
+      </div>
+    </div>`).join('')
+
+  listEl.querySelectorAll('.artigo-q-del').forEach(btn =>
+    btn.addEventListener('click', () => { _artigoQuestoes.splice(+btn.dataset.qi, 1); renderArtigoQList() }))
+  listEl.querySelectorAll('.artigo-q-enunciado').forEach(ta =>
+    ta.addEventListener('input', () => { _artigoQuestoes[+ta.closest('[data-qi]').dataset.qi].enunciado = ta.value }))
+  listEl.querySelectorAll('.artigo-q-opt').forEach(inp =>
+    inp.addEventListener('input', () => { _artigoQuestoes[+inp.dataset.qi].options[+inp.dataset.oi] = inp.value }))
+  listEl.querySelectorAll('input[type="radio"]').forEach(r =>
+    r.addEventListener('change', () => { _artigoQuestoes[+r.name.replace('aq-correct-','')].correct_index = +r.value }))
+}
+
+document.getElementById('btnAddArtigoQ')?.addEventListener('click', () => {
+  _artigoQuestoes.push({ id: null, enunciado: '', options: ['','','',''], correct_index: 0 })
+  renderArtigoQList()
+})
+
 async function openArtigoModal(artigo = null) {
   editingArtigoId  = null
   _artigoImagemUrl = null
+  _artigoQuestoes  = []
   document.getElementById('formArtigo').reset()
   document.getElementById('artigoError').textContent     = ''
   document.getElementById('artigoImagemPreview').style.display = 'none'
@@ -1873,7 +1959,14 @@ async function openArtigoModal(artigo = null) {
       preview.src           = artigo.imagem_url
       preview.style.display = ''
     }
+    // Carrega perguntas existentes
+    const { data: qs } = await supabase.from('questoes_sala_de_aula')
+      .select('*').eq('artigo_id', artigo.id).order('ordem', { ascending: true })
+    _artigoQuestoes = (qs || []).map(q => ({
+      id: q.id, enunciado: q.enunciado, options: q.options, correct_index: q.correct_index ?? 0
+    }))
   }
+  renderArtigoQList()
 
   // Destrói editor anterior se existir
   if (_artigoEditor) { try { await _artigoEditor.destroy() } catch (_) {} _artigoEditor = null }
@@ -1943,7 +2036,7 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
     } catch (_) {}
   }
 
-  if (!titulo || !conteudoBlocos?.blocks?.length) { errorEl.textContent = 'Preencha o título e o conteúdo.'; return }
+  if (!titulo) { errorEl.textContent = 'Preencha o título.'; return }
 
   setLoading(btn, true, 'Salvando...')
   errorEl.textContent = ''
@@ -1964,12 +2057,30 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
 
   const payload = { titulo, descricao: descricao || null, topics: topics || null, imagem_url: imagemUrl || null, conteudo, conteudo_blocos: conteudoBlocos, visivel }
 
-  const { error } = editingArtigoId
-    ? await supabase.from('artigos').update(payload).eq('id', editingArtigoId)
-    : await supabase.from('artigos').insert(payload)
+  let savedId = editingArtigoId
+  if (editingArtigoId) {
+    const { error } = await supabase.from('artigos').update(payload).eq('id', editingArtigoId)
+    if (error) { errorEl.textContent = 'Erro: ' + error.message; setLoading(btn, false, 'Salvar Alterações'); return }
+  } else {
+    const { data: inserted, error } = await supabase.from('artigos').insert(payload).select('id').single()
+    if (error) { errorEl.textContent = 'Erro: ' + error.message; setLoading(btn, false, 'Salvar Artigo'); return }
+    savedId = inserted.id
+  }
+
+  // Salva perguntas
+  await supabase.from('questoes_sala_de_aula').delete().eq('artigo_id', savedId)
+  const pergsValidas = _artigoQuestoes.filter(q => q.enunciado?.trim() && q.options?.filter(o => o?.trim()).length >= 2)
+  if (pergsValidas.length) {
+    await supabase.from('questoes_sala_de_aula').insert(
+      pergsValidas.map((q, i) => ({
+        artigo_id: savedId, video_id: null,
+        enunciado: q.enunciado, options: q.options,
+        correct_index: q.correct_index ?? 0, ordem: i + 1
+      }))
+    )
+  }
 
   setLoading(btn, false, editingArtigoId ? 'Salvar Alterações' : 'Salvar Artigo')
-  if (error) { errorEl.textContent = 'Erro: ' + error.message; return }
   closeArtigoModal()
   loadAdminArtigos()
 })
