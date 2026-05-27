@@ -301,6 +301,9 @@ let currentVideoId   = null
 let _catalogItems    = []
 let quizResolved     = false
 let _currentQuestion = null
+let _quizQuestions   = []
+let _quizIndex       = 0
+let _answeredMap     = {}
 
 const confirmBtn   = document.getElementById('confirmQuiz')
 const quizFeedback = document.getElementById('quizFeedback')
@@ -396,6 +399,7 @@ async function renderSalaVideo(video) {
   const grad     = document.getElementById('videoGrad')
   const playBtn  = document.getElementById('videoPlayBtn')
   const controls = document.querySelector('.video-controls')
+  const playerEl = document.getElementById('videoPlayer')
 
   // Atualiza info da aula primeiro (independente do player)
   const titleEl  = document.getElementById('lessonTitle')
@@ -404,6 +408,38 @@ async function renderSalaVideo(video) {
   if (titleEl)  titleEl.textContent  = video.title       || ''
   if (descEl)   descEl.textContent   = video.description || ''
   if (numberEl) numberEl.textContent = `Aula ${idx + 1} de ${salaVideos.length}`
+
+  // Aula já concluída — oculta player e quiz, mostra card de conclusão
+  if (getVideoProgress(video.id) === 'completed') {
+    if (playerEl) playerEl.style.display = 'none'
+    if (frame)    frame.src = ''
+    renderTextoAula(null)
+    const quizCard = document.getElementById('salaQuizCard')
+    if (quizCard) quizCard.style.display = 'none'
+    document.getElementById('conclusaoAulaCard')?.remove()
+    renderConclusaoCard(video.id)
+    quizResolved = true
+    const nextVideo2 = salaVideos[idx + 1]
+    const nextCard2  = document.getElementById('nextCard')
+    if (nextVideo2 && nextCard2) {
+      nextCard2.style.display = ''
+      const nt = document.getElementById('nextTitle')
+      const nd = document.getElementById('nextDesc')
+      const nb = document.getElementById('nextBtn')
+      if (nt) nt.textContent = nextVideo2.title
+      if (nd) nd.textContent = nextVideo2.description || ''
+      if (nb) nb.onclick = () => { currentVideoId = nextVideo2.id; renderSalaVideo(nextVideo2) }
+    } else if (nextCard2) {
+      nextCard2.style.display = 'none'
+    }
+    renderModuleList(video.id)
+    updateNextBtnState()
+    return
+  }
+
+  // Restaura player para aula não concluída
+  if (playerEl) playerEl.style.display = ''
+  document.getElementById('conclusaoAulaCard')?.remove()
 
   // Configura player
   if (frame && embedUrl) {
@@ -458,6 +494,22 @@ function renderTextoAula(texto) {
   el.innerHTML = `<h3 style="font-size:1rem;margin-bottom:0.75rem">Leitura da Aula</h3><p style="color:var(--text-secondary)">${escHtml(texto)}</p>`
 }
 
+function renderConclusaoCard(videoId) {
+  document.getElementById('conclusaoAulaCard')?.remove()
+  const el = document.createElement('div')
+  el.id = 'conclusaoAulaCard'
+  el.className = 'surface-card'
+  el.style.cssText = 'margin-top:1rem;display:flex;align-items:center;gap:0.75rem;padding:1rem 1.25rem'
+  el.innerHTML = `
+    <span class="material-symbols-outlined icon-filled" style="color:var(--secondary);font-size:1.75rem;flex-shrink:0">check_circle</span>
+    <div>
+      <div style="font-weight:600;color:var(--secondary)">Aula concluída</div>
+      <div style="font-size:0.8rem;color:var(--on-surface-var)">Você já completou esta aula.</div>
+    </div>`
+  const quizCard = document.getElementById('salaQuizCard')
+  quizCard?.insertAdjacentElement('afterend', el)
+}
+
 function updateNextBtnState() {
   const nextBtn  = document.getElementById('nextBtn')
   if (!nextBtn) return
@@ -471,18 +523,19 @@ function updateNextBtnState() {
 }
 
 async function renderSalaQuiz(videoId) {
-  const quizCard  = document.getElementById('salaQuizCard')
-  quizResolved    = false
-  _currentQuestion = null
-  confirmBtn.textContent = 'Confirmar Resposta'
-  quizFeedback.textContent = ''
-  quizFeedback.className   = 'quiz-feedback'
+  const quizCard = document.getElementById('salaQuizCard')
+  _quizQuestions  = []
+  _quizIndex      = 0
+  _answeredMap    = {}
+
+  // Remove card de conclusão se existir de uma aula anterior
+  document.getElementById('conclusaoAulaCard')?.remove()
 
   const { data: questions } = await supabase
     .from('questoes_sala_de_aula')
     .select('*')
     .eq('video_id', videoId)
-    .limit(1)
+    .order('created_at', { ascending: true })
 
   if (!questions?.length) {
     quizCard.style.display = 'none'
@@ -490,11 +543,51 @@ async function renderSalaQuiz(videoId) {
     renderTextoAula(video?.texto_aula || null)
     return
   }
-  renderTextoAula(null)
 
-  const q = questions[0]
-  _currentQuestion = q
+  renderTextoAula(null)
+  _quizQuestions = questions
   quizCard.style.display = ''
+
+  if (currentUser) {
+    const { data: respostas } = await supabase
+      .from('respostas')
+      .select('question_id, is_correct, chosen_index')
+      .eq('user_id', currentUser.id)
+      .in('question_id', questions.map(q => q.id))
+    respostas?.forEach(r => { _answeredMap[r.question_id] = r })
+  }
+
+  // Começa na primeira pergunta ainda não respondida
+  const firstUnanswered = questions.findIndex(q => !_answeredMap[q.id])
+  _quizIndex = firstUnanswered === -1 ? 0 : firstUnanswered
+
+  // Mostra card de conclusão se todas as perguntas já foram respondidas
+  if (firstUnanswered === -1) renderConclusaoCard(videoId)
+
+  showQuizQuestion(_quizIndex)
+}
+
+function showQuizQuestion(index) {
+  const q = _quizQuestions[index]
+  if (!q) return
+  _currentQuestion = q
+  _quizIndex       = index
+  quizResolved     = false
+
+  confirmBtn.textContent    = 'Confirmar Resposta'
+  quizFeedback.textContent  = ''
+  quizFeedback.className    = 'quiz-feedback'
+
+  const counterEl = document.getElementById('quizCounter')
+  if (counterEl) {
+    const total = _quizQuestions.length
+    if (total > 1) {
+      counterEl.textContent  = `Pergunta ${index + 1} de ${total}`
+      counterEl.style.display = ''
+    } else {
+      counterEl.style.display = 'none'
+    }
+  }
 
   document.getElementById('quizQuestion').textContent = q.question
   document.getElementById('quizOptions').innerHTML = [q.option_a, q.option_b, q.option_c, q.option_d]
@@ -504,43 +597,36 @@ async function renderSalaQuiz(videoId) {
         <span>${escHtml(text)}</span>
       </label>`).join('')
 
-  // Verifica se o aluno já respondeu esta pergunta
-  if (currentUser) {
-    const { data: resposta } = await supabase
-      .from('respostas')
-      .select('is_correct, chosen_index')
-      .eq('user_id', currentUser.id)
-      .eq('question_id', q.id)
-      .maybeSingle()
-
-    if (resposta) {
-      // Já respondeu — bloqueia e mostra o resultado anterior
-      quizResolved = true
-      confirmBtn.textContent = 'Próxima Aula →'
-      updateNextBtnState()
-
-      document.querySelectorAll('.quiz-opt').forEach((opt, i) => {
-        opt.classList.add('disabled')
-        const input = opt.querySelector('input')
-        if (input) input.disabled = true
-        if (i === q.correct_index) opt.classList.add('correct')
-        if (i === resposta.chosen_index && !resposta.is_correct) opt.classList.add('wrong')
-        if (i === resposta.chosen_index && resposta.is_correct)  {
-          const radio = opt.querySelector('input')
-          if (radio) radio.checked = true
-        }
-      })
-
-      const justif = q.justification ? `<br><br><span style="display:inline-flex;align-items:flex-start;gap:0.4rem"><span class="material-symbols-outlined" style="font-size:1rem;flex-shrink:0;margin-top:0.1rem">lightbulb</span><em>${escHtml(q.justification)}</em></span>` : ''
-      if (resposta.is_correct) {
-        quizFeedback.className = 'quiz-feedback ok'
-        quizFeedback.innerHTML = `<strong>✓ Você já respondeu corretamente.</strong>${justif}`
-      } else {
-        quizFeedback.className = 'quiz-feedback err'
-        quizFeedback.innerHTML = `<strong>✗ Você já respondeu esta pergunta.</strong> A correta está marcada em verde.${justif}`
+  const resposta = _answeredMap[q.id]
+  if (resposta) {
+    quizResolved = true
+    document.querySelectorAll('.quiz-opt').forEach((opt, i) => {
+      opt.classList.add('disabled')
+      const input = opt.querySelector('input')
+      if (input) input.disabled = true
+      if (i === q.correct_index) opt.classList.add('correct')
+      if (i === resposta.chosen_index && !resposta.is_correct) opt.classList.add('wrong')
+      if (i === resposta.chosen_index && resposta.is_correct) {
+        const radio = opt.querySelector('input')
+        if (radio) radio.checked = true
       }
-    }
+    })
+    const justif = q.justification ? `<br><br><span style="display:inline-flex;align-items:flex-start;gap:0.4rem"><span class="material-symbols-outlined" style="font-size:1rem;flex-shrink:0;margin-top:0.1rem">lightbulb</span><em>${escHtml(q.justification)}</em></span>` : ''
+    quizFeedback.className = resposta.is_correct ? 'quiz-feedback ok' : 'quiz-feedback err'
+    quizFeedback.innerHTML = resposta.is_correct
+      ? `<strong>✓ Você já respondeu corretamente.</strong>${justif}`
+      : `<strong>✗ Você já respondeu esta pergunta.</strong> A correta está marcada em verde.${justif}`
+    setQuizBtnLabel()
+    updateNextBtnState()
   }
+}
+
+function setQuizBtnLabel() {
+  const hasMore  = _quizIndex < _quizQuestions.length - 1
+  const isLastV  = salaVideos.findIndex(v => v.id === currentVideoId) >= salaVideos.length - 1
+  if (hasMore)        confirmBtn.textContent = 'Próxima Pergunta →'
+  else if (!isLastV)  confirmBtn.textContent = 'Próxima Aula →'
+  else                confirmBtn.textContent = 'Concluir Trilha →'
 }
 
 function renderModuleList(currentId) {
@@ -569,11 +655,17 @@ window.playSalaVideo = async function(id) {
 
 async function handleQuiz() {
   if (!confirmBtn || !quizFeedback) return
+
   if (quizResolved) {
-    const idx  = salaVideos.findIndex(v => v.id === currentVideoId)
-    const next = salaVideos[idx + 1]
-    if (next) { currentVideoId = next.id; await renderSalaVideo(next) }
-    else window.showPage('catalogo')
+    // Avança para próxima pergunta ou próxima aula
+    if (_quizIndex < _quizQuestions.length - 1) {
+      showQuizQuestion(_quizIndex + 1)
+    } else {
+      const idx  = salaVideos.findIndex(v => v.id === currentVideoId)
+      const next = salaVideos[idx + 1]
+      if (next) { currentVideoId = next.id; await renderSalaVideo(next) }
+      else window.showPage('catalogo')
+    }
     return
   }
 
@@ -609,16 +701,19 @@ async function handleQuiz() {
     quizFeedback.innerHTML = `<strong>✓ Correto!</strong>${justif}`
   }
 
-  if (isCorrect) setVideoProgress(currentVideoId, 'completed')
+  // Marca progresso da aula apenas ao responder a última pergunta
+  if (_quizIndex >= _quizQuestions.length - 1 && isCorrect) {
+    setVideoProgress(currentVideoId, 'completed')
+  }
 
   if (_currentQuestion) {
+    _answeredMap[_currentQuestion.id] = { question_id: _currentQuestion.id, is_correct: isCorrect, chosen_index: chosenIndex }
     await saveQuizResult(_currentQuestion.id, isCorrect, chosenIndex)
     updateGradeCard()
   }
 
-  const idx = salaVideos.findIndex(v => v.id === currentVideoId)
-  confirmBtn.textContent = idx < salaVideos.length - 1 ? 'Próxima Aula →' : 'Concluir Trilha →'
   quizResolved = true
+  setQuizBtnLabel()
   updateNextBtnState()
 }
 
@@ -1208,6 +1303,7 @@ async function loadCatalogo() {
         ${thumb
           ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}">`
           : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface)"><span class="material-symbols-outlined" style="font-size:3rem;color:var(--text-secondary)">${cardIcon}</span></div>`}
+        ${isConcluido ? `<div class="card-done-overlay"><span class="material-symbols-outlined icon-filled">check_circle</span></div>` : ''}
         <div class="card-play-overlay">
           <div class="card-play-circle"><span class="material-symbols-outlined">${isArtigo ? 'menu_book' : 'play_arrow'}</span></div>
         </div>
@@ -1219,7 +1315,7 @@ async function loadCatalogo() {
         </div>
         <h2 class="card-title">${escHtml(title)}</h2>
         ${desc ? `<p class="card-desc">${escHtml(desc)}</p>` : ''}
-        ${!isArtigo ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
+        ${!isArtigo ? `<div class="progress-bar"><div class="progress-fill${isConcluido ? ' done' : ''}" style="width:${pct}%"></div></div>` : ''}
       </div>`
     const handler = isArtigo ? () => openArtigo(v) : () => openVideoSala(v)
     article.addEventListener('click', handler)
@@ -1723,13 +1819,16 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
 // ============================================
 // ADMIN — PERGUNTAS
 // ============================================
+let _allQuestions = []
+let _questionsVideoMap = {}
+
 async function loadQuestions() {
   const listEl = document.getElementById('questionsList')
   listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
 
   const [{ data: questions, error }, { data: videos }] = await Promise.all([
     supabase.from('questoes_sala_de_aula').select('*').order('created_at', { ascending: false }),
-    supabase.from('videos').select('id, title')
+    supabase.from('videos').select('id, title').order('ordem', { ascending: true })
   ])
 
   if (error) {
@@ -1742,7 +1841,32 @@ async function loadQuestions() {
     return
   }
 
-  const count = questions?.length || 0
+  _allQuestions = questions || []
+  _questionsVideoMap = {}
+  videos?.forEach(v => { _questionsVideoMap[v.id] = v.title })
+
+  const filterEl = document.getElementById('filterQuizVideo')
+  const currentFilter = filterEl.value
+  filterEl.innerHTML = '<option value="">Todas as trilhas</option>'
+  videos?.forEach(v => {
+    const opt = document.createElement('option')
+    opt.value = v.id
+    opt.textContent = v.title
+    if (String(v.id) === currentFilter) opt.selected = true
+    filterEl.appendChild(opt)
+  })
+
+  renderQuestionsList()
+}
+
+function renderQuestionsList() {
+  const listEl = document.getElementById('questionsList')
+  const videoId = document.getElementById('filterQuizVideo').value
+  const filtered = videoId
+    ? _allQuestions.filter(q => String(q.video_id) === String(videoId))
+    : _allQuestions
+
+  const count = filtered.length
   document.getElementById('questionsCount').textContent =
     `${count} pergunta${count !== 1 ? 's' : ''}`
 
@@ -1750,16 +1874,13 @@ async function loadQuestions() {
     listEl.innerHTML = `
       <div class="list-empty">
         <span class="material-symbols-outlined">quiz</span>
-        <p>Nenhuma pergunta cadastrada ainda.</p>
+        <p>${videoId ? 'Nenhuma pergunta nesta trilha.' : 'Nenhuma pergunta cadastrada ainda.'}</p>
       </div>`
     return
   }
 
-  const videoMap = {}
-  videos?.forEach(v => { videoMap[v.id] = v.title })
-
   listEl.innerHTML = ''
-  questions.forEach(q => listEl.appendChild(renderQuestionCard(q, videoMap)))
+  filtered.forEach(q => listEl.appendChild(renderQuestionCard(q, _questionsVideoMap)))
 }
 
 function renderQuestionCard(q, videoMap = {}) {
@@ -1820,6 +1941,7 @@ let selectedAnswer = ''
 let editingQuestionId = null
 
 document.getElementById('btnAddQuiz').addEventListener('click', () => openQuizModal())
+document.getElementById('filterQuizVideo')?.addEventListener('change', renderQuestionsList)
 document.getElementById('closeModalQuiz').addEventListener('click', closeQuizModal)
 document.getElementById('cancelQuiz').addEventListener('click', closeQuizModal)
 
@@ -2045,8 +2167,9 @@ async function loadReports() {
   // ── DESEMPENHO POR SETOR POR TRILHA ──
   const setorMap = {}
   for (const row of (porSetorTrilha || [])) {
-    if (!setorMap[row.sector]) setorMap[row.sector] = { usuarios: row.total_usuarios, trilhas: {} }
-    setorMap[row.sector].trilhas[row.video_id] = row.media_pct
+    const s = row.sector || 'Não informado'
+    if (!setorMap[s]) setorMap[s] = { usuarios: row.total_usuarios, trilhas: {} }
+    setorMap[s].trilhas[row.video_id] = row.media_pct
   }
 
   const setorHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.topics || t.title.substring(0, 12))}</th>`).join('')
@@ -2101,14 +2224,198 @@ async function loadReports() {
 
 document.getElementById('btnGerarPDF')?.addEventListener('click', async () => {
   const btn = document.getElementById('btnGerarPDF')
-  btn.textContent = 'Carregando...'
+  btn.textContent = 'Gerando...'
   btn.disabled = true
-  await loadReports()
-  setTimeout(() => {
-    window.print()
+
+  try {
+    const [
+      { count: cVideos },
+      { count: cQuestions },
+      { count: cUsers },
+      { count: cResults },
+      { data: porUsuarioTrilha },
+      { data: porSetorTrilha },
+      { data: trilhas }
+    ] = await Promise.all([
+      supabase.from('videos').select('*', { count: 'exact', head: true }),
+      supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
+      supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('respostas').select('*', { count: 'exact', head: true }),
+      supabase.from('v_desempenho_usuario_trilha').select('*'),
+      supabase.from('v_desempenho_setor_trilha').select('*'),
+      supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true })
+    ])
+
+    const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+    const trilhaList = trilhas || []
+
+    const esc = s => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+
+    const badge = pct => {
+      if (pct === null || pct === undefined) return `<span style="color:#9ca3af;font-size:0.8rem">—</span>`
+      const n = Number(pct)
+      const [bg, color] = n >= 70 ? ['#d1fae5','#065f46'] : n >= 50 ? ['#fef3c7','#92400e'] : ['#fee2e2','#991b1b']
+      return `<span style="display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.78rem;font-weight:700;background:${bg};color:${color}">${n}%</span>`
+    }
+
+    // ── Pivot: usuário × trilha ──
+    const userMap = {}
+    for (const row of (porUsuarioTrilha || [])) {
+      if (!userMap[row.user_id]) userMap[row.user_id] = { name: row.name, email: row.email, sector: row.sector || 'Não informado', role: row.role, trilhas: {} }
+      userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas) }
+    }
+    const usersArr = Object.values(userMap)
+    usersArr.sort((a, b) => {
+      const avg = u => { const ns = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n != null); return ns.length ? ns.reduce((s,n)=>s+Number(n),0)/ns.length : -1 }
+      return avg(b) - avg(a)
+    })
+
+    // ── Pivot: setor × trilha ──
+    const setorMap = {}
+    for (const row of (porSetorTrilha || [])) {
+      const s = row.sector || 'Não informado'
+      if (!setorMap[s]) setorMap[s] = { trilhas: {} }
+      setorMap[s].trilhas[row.video_id] = row.media_pct
+    }
+
+    const thStyle = 'padding:0.55rem 0.75rem;text-align:left;background:#f1f5f9;color:#475569;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border-bottom:2px solid #e2e8f0;white-space:nowrap'
+    const thCStyle = 'padding:0.55rem 0.6rem;text-align:center;background:#f1f5f9;color:#475569;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border-bottom:2px solid #e2e8f0;white-space:nowrap;max-width:90px'
+    const tdStyle = 'padding:0.5rem 0.75rem;border-bottom:1px solid #f1f5f9;font-size:0.8rem;color:#1e293b;vertical-align:middle'
+    const tdCStyle = 'padding:0.5rem 0.6rem;text-align:center;border-bottom:1px solid #f1f5f9;font-size:0.78rem;vertical-align:middle'
+
+    // Ranking individual
+    const rankHeaderCols = trilhaList.map(t => `<th style="${thCStyle}" title="${esc(t.title)}">${esc(t.topics || t.title.substring(0,14))}</th>`).join('')
+    const medals = ['🥇','🥈','🥉']
+    const rankBodyRows = usersArr.map((u, i) => {
+      const rankNum = i < 3 ? medals[i] : `${i+1}º`
+      const trilhaCols = trilhaList.map(t => {
+        const d = u.trilhas[t.id]
+        if (!d) return `<td style="${tdCStyle}"><span style="color:#9ca3af;font-size:0.75rem">—</span></td>`
+        if (d.nota !== null && d.nota !== undefined) return `<td style="${tdCStyle}">${badge(d.nota)}</td>`
+        if (d.respondidas > 0) return `<td style="${tdCStyle}"><span style="color:#d97706;font-size:0.75rem;font-weight:600">Em andamento</span></td>`
+        return `<td style="${tdCStyle}"><span style="color:#9ca3af;font-size:0.75rem">Não iniciado</span></td>`
+      }).join('')
+      const notas = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n != null)
+      const media = notas.length ? Math.round(notas.reduce((s,n)=>s+Number(n),0)/notas.length) : null
+      const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
+      return `<tr style="background:${rowBg}">
+        <td style="${tdCStyle};font-size:0.9rem">${rankNum}</td>
+        <td style="${tdStyle}">
+          <div style="font-weight:600;color:#0f172a">${esc(u.name || u.email || '—')}</div>
+          <div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem">${esc(u.sector)}${u.role ? ' · ' + esc(u.role) : ''}</div>
+        </td>
+        ${trilhaCols}
+        <td style="${tdCStyle}">${badge(media)}</td>
+      </tr>`
+    }).join('')
+
+    // Setores
+    const setorHeaderCols = trilhaList.map(t => `<th style="${thCStyle}" title="${esc(t.title)}">${esc(t.topics || t.title.substring(0,14))}</th>`).join('')
+    const setorBodyRows = Object.entries(setorMap).map(([setor, d], i) => {
+      const cols = trilhaList.map(t => {
+        const pct = d.trilhas[t.id]
+        return `<td style="${tdCStyle}">${pct != null ? badge(pct) : '<span style="color:#9ca3af;font-size:0.75rem">—</span>'}</td>`
+      }).join('')
+      const notas = trilhaList.map(t => d.trilhas[t.id]).filter(n => n != null)
+      const media = notas.length ? Math.round(notas.reduce((s,n)=>s+Number(n),0)/notas.length) : null
+      const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
+      return `<tr style="background:${rowBg}">
+        <td style="${tdStyle};font-weight:600">${esc(setor)}</td>
+        ${cols}
+        <td style="${tdCStyle}">${badge(media)}</td>
+      </tr>`
+    }).join('')
+
+    const sectionCard = (title, icon, content) => `
+      <div style="margin-bottom:2rem;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.9rem 1.25rem;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+          <span style="font-size:1.1rem">${icon}</span>
+          <span style="font-size:0.95rem;font-weight:700;color:#1e293b">${title}</span>
+        </div>
+        <div style="overflow-x:auto">${content}</div>
+      </div>`
+
+    const statCard = (icon, value, label, color) => `
+      <div style="flex:1;min-width:130px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1.25rem 1rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+        <div style="font-size:1.5rem;margin-bottom:0.4rem">${icon}</div>
+        <div style="font-size:2rem;font-weight:800;color:${color};line-height:1">${value}</div>
+        <div style="font-size:0.75rem;color:#64748b;margin-top:0.3rem;font-weight:500;text-transform:uppercase;letter-spacing:0.04em">${label}</div>
+      </div>`
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório EduJuju — ${today}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
+  .page { width: 100%; max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  table { width: 100%; border-collapse: collapse; }
+  @media print {
+    body { background: #fff; }
+    .page { padding: 1cm 1.5cm; }
+    .no-break { page-break-inside: avoid; }
+    @page { size: A4 landscape; margin: 1cm 1.5cm; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Cabeçalho -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1.25rem;border-bottom:3px solid #4f46e5">
+    <div>
+      <div style="font-size:1.6rem;font-weight:800;color:#4f46e5;letter-spacing:-0.02em">EduJuju</div>
+      <div style="font-size:0.85rem;color:#64748b;margin-top:0.15rem">Hospital Infantil Dr. Juvêncio Mattos</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:1rem;font-weight:700;color:#1e293b">Relatório de Desempenho</div>
+      <div style="font-size:0.8rem;color:#64748b;margin-top:0.15rem">${today}</div>
+    </div>
+  </div>
+
+  <!-- Resumo -->
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem" class="no-break">
+    ${statCard('🎬', cVideos || 0, 'Trilhas', '#4f46e5')}
+    ${statCard('❓', cQuestions || 0, 'Perguntas', '#7c3aed')}
+    ${statCard('👥', cUsers || 0, 'Alunos', '#0f766e')}
+    ${statCard('✅', cResults || 0, 'Respostas', '#b45309')}
+  </div>
+
+  <!-- Desempenho por Setor -->
+  <div class="no-break">
+  ${sectionCard('Desempenho por Setor — todas as trilhas', '🏢',
+    setorBodyRows
+      ? `<table><thead><tr><th style="${thStyle}">Setor</th>${setorHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${setorBodyRows}</tbody></table>`
+      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
+  )}
+  </div>
+
+  <!-- Ranking Individual -->
+  ${sectionCard('Ranking Individual — desempenho por trilha', '🏆',
+    rankBodyRows
+      ? `<table><thead><tr><th style="${thCStyle}">#</th><th style="${thStyle}">Nome</th>${rankHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${rankBodyRows}</tbody></table>`
+      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
+  )}
+
+  <!-- Rodapé -->
+  <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:0.72rem;color:#94a3b8">Gerado automaticamente pelo sistema EduJuju</span>
+    <span style="font-size:0.72rem;color:#94a3b8">${today}</span>
+  </div>
+</div>
+<script>window.onload = () => { setTimeout(() => window.print(), 400) }<\/script>
+</body>
+</html>`
+
+    const win = window.open('', '_blank', 'width=1200,height=850,scrollbars=yes')
+    if (!win) { alert('Permita pop-ups para gerar o PDF.'); return }
+    win.document.write(html)
+    win.document.close()
+  } finally {
     btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.1rem">picture_as_pdf</span> Gerar PDF'
     btn.disabled = false
-  }, 300)
+  }
 })
 
 // ============================================

@@ -487,6 +487,21 @@ ul { list-style: none; }
 }
 .card:hover .card-img img { transform: scale(1.05); }
 
+/* Check overlay em aulas concluídas */
+.card-done-overlay {
+  position: absolute;
+  top: 0.5rem; right: 0.5rem;
+  z-index: 2;
+  background: rgba(0,0,0,0.45);
+  border-radius: 50%;
+  width: 2rem; height: 2rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.card-done-overlay .material-symbols-outlined {
+  color: #6bd8cb;
+  font-size: 1.75rem;
+}
+
 /* Escurece card bloqueado */
 .card-dim {
   position: absolute; inset: 0;
@@ -715,6 +730,16 @@ ul { list-style: none; }
 }
 .quiz-heading { font-size: 1.0625rem; font-weight: 600; }
 .quiz-sub     { font-size: 0.75rem; color: var(--on-surface-var); }
+.quiz-counter {
+  display: inline-block;
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-soft);
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--r-full);
+}
 .quiz-body    { padding-left: 0.75rem; }
 .quiz-question { font-size: 0.9375rem; font-weight: 600; line-height: 1.5; margin-bottom: 0.875rem; }
 .quiz-options { display: flex; flex-direction: column; gap: 0.5rem; }
