@@ -2087,7 +2087,7 @@ async function loadReports() {
 
   const thS = 'text-align:left;padding:0.5rem 0.75rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
   const tdS = 'padding:0.5rem 0.75rem;border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--text-primary)'
-  const thC = 'text-align:center;padding:0.5rem 0.5rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.65rem;font-weight:600;text-transform:uppercase;white-space:nowrap;max-width:100px'
+  const thC = 'text-align:center;padding:0.5rem 0.5rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.65rem;font-weight:600;text-transform:uppercase;max-width:90px;word-break:break-word;line-height:1.3'
   const tdC = 'text-align:center;padding:0.5rem 0.5rem;border-bottom:1px solid var(--border);font-size:0.78rem'
 
   const notaBadge = pct => {
@@ -2142,7 +2142,7 @@ async function loadReports() {
   })
 
   const medals = ['🥇','🥈','🥉']
-  const rankHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.topics || t.title.substring(0, 12))}</th>`).join('')
+  const rankHeaders = trilhaList.map(t => { const lbl = (t.topics || t.title).substring(0, 20); return `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(lbl)}</th>` }).join('')
   const rankRows = usersArr.length ? usersArr.map((u, i) => {
     const rank = i < 3 ? `<span style="font-size:1rem">${medals[i]}</span>`
       : `<span style="display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;border-radius:50%;background:var(--border);font-size:0.72rem;font-weight:700;color:var(--text-secondary)">${i+1}</span>`
@@ -2398,13 +2398,11 @@ document.getElementById('btnGerarPDF')?.addEventListener('click', async () => {
   </div>
 
   <!-- Desempenho por Setor -->
-  <div class="no-break">
   ${sectionCard('Desempenho por Setor — todas as trilhas', '🏢',
     setorBodyRows
       ? `<table><thead><tr><th style="${thStyle}">Setor</th>${setorHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${setorBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
   )}
-  </div>
 
   <!-- Ranking Individual -->
   ${sectionCard('Ranking Individual — desempenho por trilha', '🏆',
