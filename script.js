@@ -39,6 +39,11 @@ function showApp() {
 function showLoginScreen() {
   document.getElementById('loginScreen').style.display = 'flex'
   document.getElementById('appShell').style.display = 'none'
+  // Reseta o formulário e o botão de login
+  const loginBtn = document.getElementById('loginBtn')
+  if (loginBtn) { loginBtn.textContent = 'Entrar'; loginBtn.disabled = false }
+  const loginForm = document.getElementById('loginForm')
+  if (loginForm) loginForm.reset()
 }
 
 // ============================================
