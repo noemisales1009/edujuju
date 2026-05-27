@@ -33,7 +33,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none'
   document.getElementById('appShell').style.display = ''
-  setTimeout(() => loadCatalogo?.(), 0)
+  setTimeout(() => { loadHome?.(); loadCatalogo?.() }, 0)
 }
 
 function showLoginScreen() {
@@ -756,6 +756,7 @@ async function handleQuiz() {
   // Marca progresso da aula apenas ao responder a última pergunta
   if (_quizIndex >= _quizQuestions.length - 1 && isCorrect) {
     setVideoProgress(currentVideoId, 'completed')
+    setTimeout(() => checkTrilhaConcluidaEConfetti(currentVideoId), 400)
   }
 
   if (_currentQuestion) {
@@ -856,7 +857,8 @@ window.showPage = function(pageId) {
     loadVideos()
     loadReports()
   }
-  if (pageId === 'sala')    loadSalaDeAula()
+  if (pageId === 'home')       loadHome()
+  if (pageId === 'sala')       loadSalaDeAula()
   if (pageId === 'catalogo')   loadCatalogo()
   if (pageId === 'documentos') loadDocumentos()
   if (pageId === 'perfil')     loadPerfilConquistas()
@@ -3039,3 +3041,271 @@ document.getElementById('formSenha').addEventListener('submit', async e => {
 document.getElementById('btnNotificacoes').addEventListener('click', () => {
   alert('Configurações de notificação em breve.')
 })
+
+// ============================================
+// CONFETTI — celebra conclusão de aulas/trilhas
+// ============================================
+function fireConfetti(big = false) {
+  if (typeof window.confetti !== 'function') return
+  if (big) {
+    window.confetti({ particleCount: 180, spread: 100, origin: { y: 0.5 }, colors: ['#6c63ff', '#f59e0b', '#10b981', '#ef4444', '#3b82f6'] })
+    setTimeout(() => window.confetti({ particleCount: 80, spread: 60, origin: { x: 0.1, y: 0.6 } }), 250)
+    setTimeout(() => window.confetti({ particleCount: 80, spread: 60, origin: { x: 0.9, y: 0.6 } }), 400)
+  } else {
+    window.confetti({ particleCount: 80, spread: 70, origin: { y: 0.65 }, colors: ['#6c63ff', '#f59e0b', '#10b981'] })
+  }
+}
+
+async function checkTrilhaConcluidaEConfetti(videoId) {
+  if (!currentUser) return
+  const { data: videos } = await supabase
+    .from('videos').select('id, topics').eq('visivel', true)
+  if (!videos?.length) return
+
+  const thisVideo = videos.find(v => v.id === videoId)
+  if (!thisVideo) return
+  const trilhaKey = thisVideo.topics || thisVideo.title
+
+  const trilhaVids = videos.filter(v => (v.topics || v.title) === trilhaKey)
+  const allDone    = trilhaVids.every(v => getVideoProgress(v.id) === 'completed')
+
+  fireConfetti(allDone)
+}
+
+// ============================================
+// HOME — carrega dados da página inicial
+// ============================================
+async function loadHome() {
+  if (!currentUser) return
+
+  const [{ data: videos }, { data: artigos }] = await Promise.all([
+    supabase.from('videos').select('id, title, topics, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('artigos').select('id, titulo, descricao, imagem_url').eq('visivel', true).order('ordem', { ascending: true })
+  ])
+
+  const allVideos  = videos  || []
+  const allArtigos = artigos || []
+  const allItems   = [
+    ...allVideos.map(v  => ({ ...v,  _tipo: 'video'  })),
+    ...allArtigos.map(a => ({ ...a,  _tipo: 'artigo' }))
+  ]
+  if (!_catalogItems.length) _catalogItems = allItems
+
+  // --- Progresso geral ---
+  const totalItems = allItems.length
+  const completed  = allItems.filter(item =>
+    (item._tipo === 'video' ? getVideoProgress(item.id) : getArtigoProgress(item.id)) === 'completed'
+  ).length
+  const pct = totalItems ? Math.round((completed / totalItems) * 100) : 0
+
+  const ringFill = document.getElementById('homeRingFill')
+  if (ringFill) {
+    const offset = 264 - (pct / 100) * 264
+    ringFill.style.transition = 'stroke-dashoffset 1.2s ease'
+    ringFill.style.strokeDashoffset = offset
+  }
+  const progPctEl = document.getElementById('homeProgPct')
+  if (progPctEl) progPctEl.textContent = pct + '%'
+
+  const homeDesc = document.getElementById('homeDesc')
+  if (homeDesc) {
+    if (pct === 100)     homeDesc.textContent = 'Você completou todas as trilhas! Incrível!'
+    else if (pct > 0)    homeDesc.textContent = `${pct}% do caminho percorrido. Continue assim!`
+    else                 homeDesc.textContent = 'Comece sua primeira trilha de aprendizado.'
+  }
+
+  // --- Continue de onde parou ---
+  const startedItem = allItems.find(i => (i._tipo === 'video' ? getVideoProgress(i.id) : getArtigoProgress(i.id)) === 'started')
+    || allItems.find(i => (i._tipo === 'video' ? getVideoProgress(i.id) : getArtigoProgress(i.id)) !== 'completed')
+
+  const continueWrap = document.getElementById('homeContinueWrap')
+  const continueCard = document.getElementById('homeContinueCard')
+  if (continueWrap && continueCard) {
+    if (startedItem) {
+      continueWrap.style.display = ''
+      const isArtigo = startedItem._tipo === 'artigo'
+      const title    = isArtigo ? startedItem.titulo  : startedItem.title
+      const desc     = isArtigo ? startedItem.descricao : startedItem.description
+      const vid      = !isArtigo ? ytVideoId(startedItem.youtube_url) : null
+      const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : (startedItem.imagem_url || null)
+      window._openHomeItem = (id, tipo) => {
+        const item = allItems.find(i => i.id === id && i._tipo === tipo)
+        if (item) (tipo === 'artigo' ? openArtigo(item) : openVideoSala(item))
+      }
+      continueCard.innerHTML = `
+        <div class="home-continue-thumb">
+          ${thumb
+            ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}">`
+            : `<span class="material-symbols-outlined icon-filled" style="font-size:2.5rem;color:var(--primary)">${isArtigo ? 'article' : 'play_circle'}</span>`}
+        </div>
+        <div class="home-continue-info">
+          <span class="badge badge-progress">${isArtigo ? 'Artigo' : 'Vídeo'}</span>
+          <p class="home-continue-title">${escHtml(title)}</p>
+          ${desc ? `<p class="home-continue-desc">${escHtml(desc)}</p>` : ''}
+        </div>
+        <button class="btn-primary home-continue-btn" onclick="window._openHomeItem('${startedItem.id}','${startedItem._tipo}')">
+          <span class="material-symbols-outlined" style="font-size:1rem">${isArtigo ? 'menu_book' : 'play_arrow'}</span>
+          ${isArtigo ? 'Ler' : 'Assistir'}
+        </button>`
+    } else {
+      continueWrap.style.display = 'none'
+    }
+  }
+
+  // --- Trilhas mini-cards ---
+  const trilhasGrid = document.getElementById('homeTrilhasGrid')
+  if (trilhasGrid) {
+    const trilhasMap = {}
+    for (const v of allVideos) {
+      const key = v.topics || v.title
+      if (!trilhasMap[key]) trilhasMap[key] = []
+      trilhasMap[key].push(v)
+    }
+    trilhasGrid.innerHTML = ''
+    for (const [trilha, vids] of Object.entries(trilhasMap)) {
+      const done  = vids.filter(v => getVideoProgress(v.id) === 'completed').length
+      const total = vids.length
+      const pctT  = total ? Math.round((done / total) * 100) : 0
+      const icon  = pctT === 100 ? 'emoji_events' : pctT > 0 ? 'rocket_launch' : 'play_lesson'
+      const card  = document.createElement('div')
+      card.className = 'home-trilha-card surface-card'
+      card.style.cursor = 'pointer'
+      card.innerHTML = `
+        <div class="home-trilha-icon">
+          <span class="material-symbols-outlined icon-filled" style="color:var(--primary)">${icon}</span>
+        </div>
+        <div class="home-trilha-info">
+          <p class="home-trilha-name">${escHtml(trilha)}</p>
+          <div class="progress-bar" style="margin-top:0.375rem">
+            <div class="progress-fill${pctT === 100 ? ' done' : ''}" style="width:${pctT}%"></div>
+          </div>
+          <small style="color:var(--text-secondary)">${done}/${total} aula${total !== 1 ? 's' : ''}</small>
+        </div>`
+      card.addEventListener('click', () => window.showPage('catalogo'))
+      trilhasGrid.appendChild(card)
+    }
+  }
+
+  // --- Ranking top 5 ---
+  const rankingEl = document.getElementById('homeRanking')
+  if (rankingEl) {
+    rankingEl.innerHTML = '<div style="padding:1rem;text-align:center"><span class="material-symbols-outlined" style="animation:spin 1s linear infinite;color:var(--primary)">progress_activity</span></div>'
+    const { data: rankData } = await supabase.from('v_desempenho_usuario_trilha').select('user_id, nota_pct')
+    if (rankData?.length) {
+      const agg = {}
+      for (const r of rankData) {
+        if (!agg[r.user_id]) agg[r.user_id] = { sum: 0, count: 0 }
+        agg[r.user_id].sum   += Number(r.nota_pct) || 0
+        agg[r.user_id].count += 1
+      }
+      const sorted = Object.entries(agg)
+        .map(([uid, { sum, count }]) => ({ uid, avg: Math.round(sum / count) }))
+        .sort((a, b) => b.avg - a.avg).slice(0, 5)
+
+      const { data: usersData } = await supabase.from('users').select('id, name, email').in('id', sorted.map(s => s.uid))
+      const uMap = {}
+      for (const u of (usersData || [])) uMap[u.id] = u.name || u.email?.split('@')[0] || '—'
+
+      const medals = ['🥇', '🥈', '🥉', '4', '5']
+      rankingEl.innerHTML = sorted.map((s, i) => `
+        <div class="home-rank-row${s.uid === currentUser.id ? ' home-rank-me' : ''}">
+          <span class="home-rank-num">${medals[i]}</span>
+          <span class="home-rank-name">${escHtml(uMap[s.uid] || '—')}</span>
+          <span class="home-rank-nota">${s.avg}%</span>
+        </div>`).join('')
+    } else {
+      rankingEl.innerHTML = '<p style="padding:1rem;color:var(--text-secondary);font-size:0.875rem">Sem dados de ranking ainda.</p>'
+    }
+  }
+
+  // --- Certificado ---
+  const certWrap = document.getElementById('homeCertWrap')
+  if (certWrap) certWrap.style.display = (totalItems > 0 && completed === totalItems) ? '' : 'none'
+}
+
+// ============================================
+// CERTIFICADO — gera PDF de conclusão
+// ============================================
+async function gerarCertificado() {
+  if (!currentUser) return
+
+  const cached  = localStorage.getItem('eduflow-profile-' + currentUser.id)
+  const profile = cached ? JSON.parse(cached) : {}
+  const nome    = profile.name || currentUser.email?.split('@')[0] || 'Colaborador'
+
+  const { data: videos } = await supabase
+    .from('videos').select('id, topics, title').eq('visivel', true).order('ordem', { ascending: true })
+
+  const trilhasMap = {}
+  for (const v of (videos || [])) {
+    const key = v.topics || v.title
+    if (!trilhasMap[key]) trilhasMap[key] = { vids: [], done: 0 }
+    trilhasMap[key].vids.push(v)
+    if (getVideoProgress(v.id) === 'completed') trilhasMap[key].done++
+  }
+
+  const concluidasHtml = Object.entries(trilhasMap)
+    .filter(([, t]) => t.done === t.vids.length && t.vids.length > 0)
+    .map(([trilha]) => `<li>${escHtml(trilha)}</li>`)
+    .join('')
+
+  const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Certificado EduJuju</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@page{size:A4 landscape;margin:0}
+body{font-family:'Segoe UI',Arial,sans-serif;width:297mm;height:210mm;display:flex;align-items:center;justify-content:center;background:#fff}
+.cert{width:263mm;height:183mm;border:6px double #6c63ff;border-radius:16px;padding:36px 56px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(135deg,#fefcff 0%,#f3f0ff 100%);position:relative;overflow:hidden}
+.corner{position:absolute;font-size:6rem;opacity:0.05;color:#6c63ff;line-height:1}
+.corner.tl{top:-10px;left:-10px}
+.corner.tr{top:-10px;right:-10px}
+.corner.bl{bottom:-10px;left:-10px}
+.corner.br{bottom:-10px;right:-10px}
+.icon{font-size:2.75rem;margin-bottom:4px}
+.cert-title{font-size:2rem;font-weight:700;color:#1a1a2e;letter-spacing:0.04em;text-transform:uppercase}
+.cert-hospital{font-size:0.8rem;font-weight:600;color:#6c63ff;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:20px}
+.cert-body{font-size:1rem;color:#555;margin-bottom:4px}
+.cert-name{font-size:2.25rem;font-weight:700;color:#6c63ff;margin:8px 0 20px}
+.cert-trilhas-label{font-size:0.8rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:24px}
+.chip{background:#ede9fe;color:#5b21b6;border-radius:20px;padding:4px 14px;font-size:0.8rem;font-weight:600}
+.cert-footer{display:flex;justify-content:space-between;width:100%;border-top:1px dashed #c4b5fd;padding-top:16px;margin-top:auto}
+.sig{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:130px}
+.sig-line{font-size:0.7rem;color:#666}
+.cert-date{font-size:0.75rem;color:#888;align-self:center}
+</style>
+</head>
+<body>
+<div class="cert">
+  <div class="corner tl">✦</div><div class="corner tr">✦</div>
+  <div class="corner bl">✦</div><div class="corner br">✦</div>
+  <div class="icon">🎓</div>
+  <div class="cert-title">Certificado de Conclusão</div>
+  <div class="cert-hospital">Hospital Infantil Dr. Juvêncio Mattos — EduJuju</div>
+  <p class="cert-body">Certificamos que</p>
+  <div class="cert-name">${escHtml(nome)}</div>
+  <p class="cert-body">concluiu com êxito as trilhas de aprendizado:</p>
+  <div class="cert-trilhas-label" style="margin-top:8px">Trilhas concluídas</div>
+  <div class="chips">${concluidasHtml}</div>
+  <div class="cert-footer">
+    <div class="sig"><div style="width:130px;border-top:1.5px solid #999;margin-bottom:4px"></div><span class="sig-line">Coordenação Pedagógica</span></div>
+    <div class="cert-date">${hoje}</div>
+    <div class="sig"><div style="width:130px;border-top:1.5px solid #999;margin-bottom:4px"></div><span class="sig-line">Diretoria do Hospital</span></div>
+  </div>
+</div>
+</body>
+</html>`
+
+  const win = window.open('', '_blank', 'width=960,height=720')
+  if (!win) { alert('Por favor, permita popups para gerar o certificado.'); return }
+  win.document.write(html)
+  win.document.close()
+  win.onload = () => setTimeout(() => win.print(), 600)
+}
+
+document.getElementById('btnGerarCertificado')?.addEventListener('click', gerarCertificado)

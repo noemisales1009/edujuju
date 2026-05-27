@@ -263,9 +263,9 @@
     </div>
 
     <nav class="sidebar-nav">
-      <a href="#" class="nav-item active" data-page="catalogo">
-        <span class="material-symbols-outlined">dashboard</span>
-        <span>Dashboard</span>
+      <a href="#" class="nav-item active" data-page="home">
+        <span class="material-symbols-outlined">home</span>
+        <span>Home</span>
       </a>
       <a href="#" class="nav-item" data-page="sala">
         <span class="material-symbols-outlined">menu_book</span>
@@ -320,8 +320,74 @@
     <!-- Conteúdo principal -->
     <main class="main-content">
 
+      <!-- ======== PAGE: Home ======== -->
+      <section class="page active" id="page-home">
+        <div class="home-wrap">
+
+          <!-- Greeting + Progresso -->
+          <div class="home-hero surface-card">
+            <div class="home-hero-text">
+              <p class="home-greeting-sub">Bem-vindo de volta,</p>
+              <h1 class="home-greeting-name perfil-name">—</h1>
+              <p class="home-greeting-desc" id="homeDesc">Continue de onde parou.</p>
+            </div>
+            <div class="home-ring-wrap">
+              <svg viewBox="0 0 100 100" width="96" height="96">
+                <circle cx="50" cy="50" r="42" fill="transparent" stroke-width="8" class="home-ring-track"/>
+                <circle cx="50" cy="50" r="42" fill="transparent" stroke-width="8" id="homeRingFill"
+                  stroke-dasharray="264" stroke-dashoffset="264" stroke-linecap="round"
+                  transform="rotate(-90 50 50)" class="home-ring-fill"/>
+              </svg>
+              <div class="home-ring-center">
+                <span id="homeProgPct">0%</span>
+                <small>concluído</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Continue de onde parou -->
+          <div id="homeContinueWrap" style="display:none">
+            <h3 class="section-heading">Continue de onde parou</h3>
+            <div class="home-continue-card surface-card" id="homeContinueCard"></div>
+          </div>
+
+          <!-- Trilhas -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.875rem">
+              <h3 class="section-heading" style="margin:0">Suas Trilhas</h3>
+              <button class="link-btn" onclick="showPage('catalogo')">Ver todas</button>
+            </div>
+            <div class="home-trilhas-grid" id="homeTrilhasGrid"></div>
+          </div>
+
+          <!-- Ranking -->
+          <div>
+            <h3 class="section-heading">Ranking</h3>
+            <div class="surface-card" style="padding:0;overflow:hidden" id="homeRanking">
+              <div style="padding:1.5rem;text-align:center;color:var(--on-surface-var)">Carregando...</div>
+            </div>
+          </div>
+
+          <!-- Certificado -->
+          <div id="homeCertWrap" style="display:none">
+            <div class="home-cert-card surface-card">
+              <span class="material-symbols-outlined icon-filled" style="font-size:2.5rem;color:#f59e0b">workspace_premium</span>
+              <div>
+                <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.25rem">Parabéns! Você concluiu todas as trilhas!</h3>
+                <p style="font-size:0.8rem;color:var(--on-surface-var)">Seu certificado de conclusão está pronto.</p>
+              </div>
+              <button class="btn-primary" id="btnGerarCertificado" style="white-space:nowrap">
+                <span class="material-symbols-outlined" style="font-size:1rem">download</span>
+                Gerar Certificado
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <!-- ======== PAGE: Catálogo de Trilhas ======== -->
-      <section class="page active" id="page-catalogo">
+      <section class="page" id="page-catalogo">
         <div class="page-header">
           <h1>Trilhas de Aprendizado</h1>
           <p>Continue seu desenvolvimento escolhendo uma de suas trilhas focadas.</p>
@@ -973,11 +1039,11 @@
 
   <!-- Bottom Nav (mobile) -->
   <nav class="bottom-nav" id="bottomNav">
-    <a href="#" class="bnav-item active" data-page="catalogo">
+    <a href="#" class="bnav-item active" data-page="home">
       <span class="material-symbols-outlined">home</span>
       <span>Home</span>
     </a>
-    <a href="#" class="bnav-item" data-page="sala">
+    <a href="#" class="bnav-item" data-page="catalogo">
       <span class="material-symbols-outlined">menu_book</span>
       <span>Aulas</span>
     </a>
@@ -1103,6 +1169,8 @@
     </div>
   </div>
 
+  <!-- Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
   <!-- Editor.js -->
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@2.8.1"></script>
