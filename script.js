@@ -289,12 +289,8 @@ const COLLAPSED_KEY = 'eduflow-sidebar-collapsed'
 if (localStorage.getItem(COLLAPSED_KEY) === '1') sidebar?.classList.add('collapsed')
 
 if (menuBtn) menuBtn.addEventListener('click', () => {
-  if (window.innerWidth >= 768) {
-    const isNowCollapsed = sidebar.classList.toggle('collapsed')
-    localStorage.setItem(COLLAPSED_KEY, isNowCollapsed ? '1' : '0')
-  } else {
-    openSidebar()
-  }
+  const isNowCollapsed = sidebar.classList.toggle('collapsed')
+  localStorage.setItem(COLLAPSED_KEY, isNowCollapsed ? '1' : '0')
 })
 if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar)
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar() })

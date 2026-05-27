@@ -425,9 +425,9 @@ ul { list-style: none; }
   gap: 0.625rem;
 }
 
-/* Menu button: só visível no mobile */
-.menu-btn { display: flex; }
-@media (min-width: 768px) { .menu-btn { display: none; } }
+/* Menu button: só visível no desktop para colapsar a sidebar */
+.menu-btn { display: none; }
+@media (min-width: 768px) { .menu-btn { display: flex; } }
 
 /* Botão tema */
 .theme-btn {
