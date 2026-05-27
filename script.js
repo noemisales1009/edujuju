@@ -81,8 +81,10 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
     else
       errorEl.textContent = error.message || 'Erro ao fazer login. Tente novamente.'
     setLoading(btn, false, 'Entrar')
+  } else {
+    btn.textContent = 'Abrindo app...'
+    // onAuthStateChange cuida do redirecionamento
   }
-  // onAuthStateChange cuida do redirecionamento em caso de sucesso
 })
 
 // ============================================
@@ -260,7 +262,7 @@ function showPage(pageId) {
   )
 
   closeSidebar()
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  window.scrollTo({ top: 0, behavior: 'instant' })
 }
 
 // Links de navegação
@@ -311,8 +313,12 @@ const quizFeedback = document.getElementById('quizFeedback')
 if (confirmBtn) confirmBtn.addEventListener('click', handleQuiz)
 
 async function loadSalaDeAula() {
-  const { data: videos } = await supabase
-    .from('videos').select('*').order('ordem', { ascending: true })
+  const [{ data: videos }, { data: todasRespostas }] = await Promise.all([
+    supabase.from('videos').select('*').order('ordem', { ascending: true }),
+    currentUser
+      ? supabase.from('respostas').select('question_id, is_correct, chosen_index').eq('user_id', currentUser.id)
+      : Promise.resolve({ data: [] })
+  ])
   salaVideos = videos || []
 
   const emptyEl  = document.getElementById('salaEmpty')
@@ -337,20 +343,22 @@ async function loadSalaDeAula() {
   const idx   = salaVideos.findIndex(v => v.id === currentVideoId)
   const video = salaVideos[idx >= 0 ? idx : 0]
   currentVideoId = video.id
-  await renderSalaVideo(video)
-  updateGradeCard()
+  await renderSalaVideo(video, todasRespostas || [])
+  updateGradeCard(todasRespostas || [])
 }
 
-async function updateGradeCard() {
+async function updateGradeCard(cachedRespostas = null) {
   if (!currentUser || !salaVideos.length) return
 
   let pct = 0
 
-  // Tenta buscar dados reais da tabela respostas
-  const { data: respostas, error } = await supabase
-    .from('respostas')
-    .select('is_correct')
-    .eq('user_id', currentUser.id)
+  let respostas = cachedRespostas
+  let error = null
+  if (respostas === null) {
+    const result = await supabase.from('respostas').select('is_correct').eq('user_id', currentUser.id)
+    respostas = result.data
+    error = result.error
+  }
 
   if (!error && respostas?.length > 0) {
     const correct = respostas.filter(r => r.is_correct).length
@@ -392,7 +400,7 @@ async function saveQuizResult(questionId, isCorrect, chosenIndex) {
   } catch (_) { /* erro silencioso */ }
 }
 
-async function renderSalaVideo(video) {
+async function renderSalaVideo(video, cachedRespostas = null) {
   const idx      = salaVideos.findIndex(v => v.id === video.id)
   const embedUrl = ytEmbedUrl(video.youtube_url)
   const vidId    = ytVideoId(video.youtube_url)
@@ -461,7 +469,7 @@ async function renderSalaVideo(video) {
     if (controls) controls.style.display = ''
   }
 
-  await renderSalaQuiz(video.id)
+  await renderSalaQuiz(video.id, cachedRespostas)
   renderModuleList(video.id)
 
   const nextVideo = salaVideos[idx + 1]
@@ -526,7 +534,7 @@ function updateNextBtnState() {
   nextBtn.title         = blocked ? 'Responda o quiz para avançar' : ''
 }
 
-async function renderSalaQuiz(videoId) {
+async function renderSalaQuiz(videoId, cachedRespostas = null) {
   const quizCard = document.getElementById('salaQuizCard')
   _quizQuestions  = []
   _quizIndex      = 0
@@ -535,11 +543,15 @@ async function renderSalaQuiz(videoId) {
   // Remove card de conclusão se existir de uma aula anterior
   document.getElementById('conclusaoAulaCard')?.remove()
 
-  const { data: questions } = await supabase
-    .from('questoes_sala_de_aula')
-    .select('*')
-    .eq('video_id', videoId)
-    .order('created_at', { ascending: true })
+  // Busca questões e respostas em paralelo (quando não há cache)
+  const [{ data: questions }, respostasResult] = await Promise.all([
+    supabase.from('questoes_sala_de_aula').select('*').eq('video_id', videoId).order('created_at', { ascending: true }),
+    cachedRespostas !== null
+      ? Promise.resolve({ data: cachedRespostas })
+      : currentUser
+        ? supabase.from('respostas').select('question_id, is_correct, chosen_index').eq('user_id', currentUser.id)
+        : Promise.resolve({ data: [] })
+  ])
 
   if (!questions?.length) {
     quizCard.style.display = 'none'
@@ -553,12 +565,9 @@ async function renderSalaQuiz(videoId) {
   quizCard.style.display = ''
 
   if (currentUser) {
-    const { data: respostas } = await supabase
-      .from('respostas')
-      .select('question_id, is_correct, chosen_index')
-      .eq('user_id', currentUser.id)
-      .in('question_id', questions.map(q => q.id))
-    respostas?.forEach(r => { _answeredMap[r.question_id] = r })
+    const allRespostas = respostasResult?.data || []
+    const qIds = new Set(questions.map(q => q.id))
+    allRespostas.filter(r => qIds.has(r.question_id)).forEach(r => { _answeredMap[r.question_id] = r })
   }
 
   // Começa na primeira pergunta ainda não respondida
@@ -665,7 +674,14 @@ function renderModuleList(currentId) {
 
 window.playSalaVideo = async function(id) {
   const video = salaVideos.find(v => v.id === id)
-  if (video) { currentVideoId = video.id; await renderSalaVideo(video) }
+  if (!video) return
+  currentVideoId = video.id
+  let cachedRespostas = null
+  if (currentUser) {
+    const { data } = await supabase.from('respostas').select('question_id, is_correct, chosen_index').eq('user_id', currentUser.id)
+    cachedRespostas = data || []
+  }
+  await renderSalaVideo(video, cachedRespostas)
 }
 
 async function handleQuiz() {
