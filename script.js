@@ -11,6 +11,18 @@ let currentUser = null
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user
+    const meta = currentUser.user_metadata || {}
+    if (meta.name) {
+      supabase.from('users').upsert({
+        id: currentUser.id,
+        email: currentUser.email,
+        name: meta.name,
+        sector: meta.sector || '',
+        role: meta.role || '',
+        access_level: 'geral'
+      }, { onConflict: 'id', ignoreDuplicates: true })
+        .then(({ error }) => { if (error) console.warn('[Auth] upsert users:', error) })
+    }
     applyCachedProfile(currentUser.id)
     showApp()
     try { await loadProfile() } catch (e) { console.warn('[Auth] loadProfile error:', e) }
