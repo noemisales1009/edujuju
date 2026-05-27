@@ -2328,7 +2328,8 @@ async function loadReports() {
     { count: cResults },
     { data: porUsuarioTrilha },
     { data: porSetorTrilha },
-    { data: trilhas }
+    { data: trilhas },
+    { data: principais_duvidas }
   ] = await Promise.all([
     supabase.from('videos').select('*', { count: 'exact', head: true }),
     supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
@@ -2336,7 +2337,8 @@ async function loadReports() {
     supabase.from('respostas').select('*', { count: 'exact', head: true }),
     supabase.from('v_desempenho_usuario_trilha').select('*'),
     supabase.from('v_desempenho_setor_trilha').select('*'),
-    supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true })
+    supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
+    supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(30)
   ])
 
   const thS = 'text-align:left;padding:0.5rem 0.75rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
@@ -2488,6 +2490,45 @@ async function loadReports() {
     </div>
     ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable)}
     ${tabelaCard('leaderboard', 'Ranking Individual — desempenho por trilha', rankTable)}
+    ${tabelaCard('psychology', 'Principais Dúvidas — perguntas com maior taxa de erro', (() => {
+      if (!principais_duvidas?.length) return semDados(4)
+
+      // Agrupa por trilha mantendo ordem por pct_erro desc
+      const grupos = {}
+      for (const d of principais_duvidas) {
+        const key = d.trilha || '—'
+        if (!grupos[key]) grupos[key] = []
+        grupos[key].push(d)
+      }
+
+      const thGrp = 'padding:0.6rem 0.75rem;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--primary);background:var(--primary-soft);border-bottom:1px solid var(--border)'
+
+      const rows = Object.entries(grupos).map(([trilha, itens]) => {
+        const header = `<tr><td colspan="4" style="${thGrp}">${escHtml(trilha)}</td></tr>`
+        const qRows = itens.map(d => {
+          const pct = Number(d.pct_erro) || 0
+          const [bg, color] = pct >= 70 ? ['#ffebee','#c62828'] : pct >= 40 ? ['#fff8e1','#f57f17'] : ['#e8f5e9','#2e7d32']
+          const errBadge = `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.75rem;font-weight:700;background:${bg};color:${color}">${pct}%</span>`
+          return `<tr>
+            <td style="${tdS}">${escHtml(d.pergunta || '—')}</td>
+            <td style="${tdC}">${d.total_respostas ?? '—'}</td>
+            <td style="${tdC}">${d.total_erros ?? '—'}</td>
+            <td style="${tdC}">${errBadge}</td>
+          </tr>`
+        }).join('')
+        return header + qRows
+      }).join('')
+
+      return `<table class="resp-table" style="width:100%;border-collapse:collapse">
+        <thead style="background:var(--surface)"><tr>
+          <th style="${thS}">Pergunta</th>
+          <th style="${thC}">Respostas</th>
+          <th style="${thC}">Erros</th>
+          <th style="${thC}">% Erro</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`
+    })())}
   `
 }
 
