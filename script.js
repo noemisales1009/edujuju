@@ -140,6 +140,10 @@ function switchTab(tab) {
   document.getElementById('registerForm').style.display = isLogin ? 'none' : 'flex'
   document.getElementById('tabLogin').classList.toggle('tab-active',    isLogin)
   document.getElementById('tabRegister').classList.toggle('tab-active', !isLogin)
+  if (!isLogin) {
+    document.getElementById('registerForm').reset()
+    document.getElementById('regError').textContent = ''
+  }
 }
 
 // ============================================
