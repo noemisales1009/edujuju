@@ -1932,100 +1932,149 @@ async function loadReports() {
     { count: cQuestions },
     { count: cUsers },
     { count: cResults },
-    { data: porSetor },
-    { data: porFuncao },
-    { data: geral }
+    { data: porUsuarioTrilha },
+    { data: porSetorTrilha },
+    { data: trilhas }
   ] = await Promise.all([
     supabase.from('videos').select('*', { count: 'exact', head: true }),
     supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('respostas').select('*', { count: 'exact', head: true }),
-    supabase.from('v_desempenho_por_setor').select('*').order('modulo'),
-    supabase.from('v_desempenho_por_funcao').select('*').order('modulo'),
-    supabase.from('v_desempenho_geral').select('*').order('nota_geral_pct', { ascending: false })
+    supabase.from('v_desempenho_usuario_trilha').select('*'),
+    supabase.from('v_desempenho_setor_trilha').select('*'),
+    supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true })
   ])
 
+  const thS = 'text-align:left;padding:0.5rem 0.75rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
+  const tdS = 'padding:0.5rem 0.75rem;border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--text-primary)'
+  const thC = 'text-align:center;padding:0.5rem 0.5rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.65rem;font-weight:600;text-transform:uppercase;white-space:nowrap;max-width:100px'
+  const tdC = 'text-align:center;padding:0.5rem 0.5rem;border-bottom:1px solid var(--border);font-size:0.78rem'
+
   const notaBadge = pct => {
-    const n = Number(pct) || 0
+    if (pct === null || pct === undefined) return `<span style="color:var(--text-secondary);font-size:0.75rem">—</span>`
+    const n = Number(pct)
     const [bg, color] = n >= 70 ? ['#e8f5e9','#2e7d32'] : n >= 50 ? ['#fff8e1','#f57f17'] : ['#ffebee','#c62828']
-    return `<span style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.2rem 0.55rem;border-radius:999px;font-size:0.8rem;font-weight:700;background:${bg};color:${color}">${n}%</span>`
+    return `<span style="padding:0.15rem 0.45rem;border-radius:999px;font-size:0.75rem;font-weight:700;background:${bg};color:${color}">${n}%</span>`
   }
 
   const barra = pct => {
     const n = Number(pct) || 0
-    const [fill] = n >= 70 ? ['#43a047'] : n >= 50 ? ['#fbc02d'] : ['#e53935']
-    return `<div style="display:flex;align-items:center;gap:0.5rem;min-width:140px">
-      <div style="flex:1;height:6px;border-radius:3px;background:var(--border);overflow:hidden">
-        <div style="height:100%;width:${n}%;background:${fill};border-radius:3px;transition:width 0.4s"></div>
+    const fill = n >= 70 ? '#43a047' : n >= 50 ? '#fbc02d' : '#e53935'
+    return `<div style="display:flex;align-items:center;gap:0.4rem;min-width:120px">
+      <div style="flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden">
+        <div style="height:100%;width:${n}%;background:${fill};border-radius:3px"></div>
       </div>
       ${notaBadge(n)}
     </div>`
   }
 
-  const thS = 'text-align:left;padding:0.625rem 1rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
-  const tdS = 'padding:0.625rem 1rem;border-bottom:1px solid var(--border);font-size:0.875rem;color:var(--text-primary)'
-
-  const vazio = cols => `
-    <tr><td colspan="${cols}" style="${tdS};text-align:center;padding:2.5rem 1rem">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;color:var(--text-secondary)">
-        <span class="material-symbols-outlined" style="font-size:2rem;opacity:0.4">bar_chart</span>
-        <span style="font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</span>
-      </div>
-    </td></tr>`
-
-  const tabelaCard = (icon, titulo, headers, rows) => `
+  const tabelaCard = (icon, titulo, conteudo) => `
     <div style="grid-column:1/-1;background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-sm)">
-      <div style="display:flex;align-items:center;gap:0.75rem;padding:1rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface)">
-        <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.25rem">${icon}</span>
-        <span style="font-size:0.9375rem;font-weight:600;color:var(--text-primary)">${titulo}</span>
+      <div style="display:flex;align-items:center;gap:0.75rem;padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface)">
+        <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.2rem">${icon}</span>
+        <span style="font-size:0.9rem;font-weight:600;color:var(--text-primary)">${titulo}</span>
       </div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse">
-          <thead style="background:var(--surface)"><tr>${headers.map(h => `<th style="${thS}">${h}</th>`).join('')}</tr></thead>
-          <tbody>${rows || vazio(headers.length)}</tbody>
-        </table>
-      </div>
+      <div style="overflow-x:auto">${conteudo}</div>
     </div>`
 
-  const rowsSetor = (porSetor || []).map(r => `
-    <tr style="transition:background 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
-      <td style="${tdS}"><span style="font-weight:500">${escHtml(r.sector || '—')}</span></td>
-      <td style="${tdS}"><span class="badge badge-neutral" style="font-size:0.75rem">${escHtml(r.modulo || '—')}</span></td>
-      <td style="${tdS}"><span style="display:inline-flex;align-items:center;gap:0.25rem"><span class="material-symbols-outlined" style="font-size:0.9rem;color:var(--text-secondary)">group</span>${r.total_usuarios}</span></td>
-      <td style="${tdS}">${barra(r.media_pct)}</td>
-    </tr>`).join('')
+  const semDados = cols => `<table style="width:100%;border-collapse:collapse">
+    <tbody><tr><td colspan="${cols}" style="${tdS};text-align:center;padding:2rem">
+      <span style="color:var(--text-secondary);font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</span>
+    </td></tr></tbody></table>`
 
-  const rowsFuncao = (porFuncao || []).map(r => `
-    <tr style="transition:background 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
-      <td style="${tdS}"><span style="font-weight:500">${escHtml(r.funcao || '—')}</span></td>
-      <td style="${tdS}"><span class="badge badge-neutral" style="font-size:0.75rem">${escHtml(r.modulo || '—')}</span></td>
-      <td style="${tdS}"><span style="display:inline-flex;align-items:center;gap:0.25rem"><span class="material-symbols-outlined" style="font-size:0.9rem;color:var(--text-secondary)">group</span>${r.total_usuarios}</span></td>
-      <td style="${tdS}">${barra(r.media_pct)}</td>
-    </tr>`).join('')
+  // ── RANKING INDIVIDUAL POR TRILHA (tabela pivô) ──
+  const trilhaList = trilhas || []
+  const userMap = {}
+  for (const row of (porUsuarioTrilha || [])) {
+    if (!userMap[row.user_id]) {
+      userMap[row.user_id] = { name: row.name, email: row.email, sector: row.sector, role: row.role, trilhas: {} }
+    }
+    userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas) }
+  }
+
+  const usersArr = Object.values(userMap)
+  usersArr.sort((a, b) => {
+    const avgFn = u => {
+      const notas = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n !== null && n !== undefined)
+      return notas.length ? notas.reduce((s, n) => s + Number(n), 0) / notas.length : -1
+    }
+    return avgFn(b) - avgFn(a)
+  })
 
   const medals = ['🥇','🥈','🥉']
-  const rowsGeral = (geral || []).map((r, i) => {
-    const rank = i < 3 ? `<span style="font-size:1.1rem">${medals[i]}</span>` : `<span style="display:inline-flex;align-items:center;justify-content:center;width:1.5rem;height:1.5rem;border-radius:50%;background:var(--border);font-size:0.75rem;font-weight:700;color:var(--text-secondary)">${i+1}</span>`
+  const rankHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.topics || t.title.substring(0, 12))}</th>`).join('')
+  const rankRows = usersArr.length ? usersArr.map((u, i) => {
+    const rank = i < 3 ? `<span style="font-size:1rem">${medals[i]}</span>`
+      : `<span style="display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;border-radius:50%;background:var(--border);font-size:0.72rem;font-weight:700;color:var(--text-secondary)">${i+1}</span>`
+
+    const trilhaCols = trilhaList.map(t => {
+      const d = u.trilhas[t.id]
+      if (!d) return `<td style="${tdC}">—</td>`
+      if (d.nota !== null && d.nota !== undefined) return `<td style="${tdC}">${notaBadge(d.nota)}</td>`
+      if (d.respondidas > 0) return `<td style="${tdC}"><span style="font-size:0.7rem;color:#f57f17">Em andamento</span></td>`
+      return `<td style="${tdC}"><span style="font-size:0.7rem;color:var(--text-secondary)">Não iniciado</span></td>`
+    }).join('')
+
+    const notas = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n !== null && n !== undefined)
+    const media = notas.length ? Math.round(notas.reduce((s, n) => s + Number(n), 0) / notas.length) : null
+
     return `<tr style="transition:background 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
-      <td style="${tdS};width:2.5rem;text-align:center">${rank}</td>
+      <td style="${tdS};width:2rem;text-align:center">${rank}</td>
       <td style="${tdS}">
-        <div style="display:flex;flex-direction:column">
-          <span style="font-weight:500">${escHtml(r.name || r.email || '—')}</span>
-          ${r.email && r.name ? `<span style="font-size:0.75rem;color:var(--text-secondary)">${escHtml(r.email)}</span>` : ''}
-        </div>
+        <span style="font-weight:500">${escHtml(u.name || u.email || '—')}</span>
+        <div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')} ${u.role ? '· ' + escHtml(u.role) : ''}</div>
       </td>
-      <td style="${tdS}">${escHtml(r.sector || '—')}</td>
-      <td style="${tdS}">${escHtml(r.role || '—')}</td>
-      <td style="${tdS}"><span style="font-variant-numeric:tabular-nums">${r.acertos}<span style="color:var(--text-secondary)">/${r.total_respondidas}</span></span></td>
-      <td style="${tdS}">${barra(r.nota_geral_pct)}</td>
+      ${trilhaCols}
+      <td style="${tdC};font-weight:700">${notaBadge(media)}</td>
+    </tr>`
+  }).join('') : null
+
+  const rankTable = `<table style="width:100%;border-collapse:collapse">
+    <thead style="background:var(--surface)"><tr>
+      <th style="${thS}">#</th>
+      <th style="${thS}">Nome</th>
+      ${rankHeaders}
+      <th style="${thC}">Média Geral</th>
+    </tr></thead>
+    <tbody>${rankRows || `<tr><td colspan="${3 + trilhaList.length}" style="${tdS};text-align:center;padding:2rem"><span style="color:var(--text-secondary)">Sem dados ainda</span></td></tr>`}</tbody>
+  </table>`
+
+  // ── DESEMPENHO POR SETOR POR TRILHA ──
+  const setorMap = {}
+  for (const row of (porSetorTrilha || [])) {
+    if (!setorMap[row.sector]) setorMap[row.sector] = { usuarios: row.total_usuarios, trilhas: {} }
+    setorMap[row.sector].trilhas[row.video_id] = row.media_pct
+  }
+
+  const setorHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.topics || t.title.substring(0, 12))}</th>`).join('')
+  const setorRows = Object.entries(setorMap).map(([setor, d]) => {
+    const cols = trilhaList.map(t => {
+      const pct = d.trilhas[t.id]
+      return `<td style="${tdC}">${pct !== null && pct !== undefined ? barra(pct) : '<span style="color:var(--text-secondary);font-size:0.75rem">—</span>'}</td>`
+    }).join('')
+    const notas = trilhaList.map(t => d.trilhas[t.id]).filter(n => n !== null && n !== undefined)
+    const media = notas.length ? Math.round(notas.reduce((s, n) => s + Number(n), 0) / notas.length) : null
+    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <td style="${tdS}"><span style="font-weight:500">${escHtml(setor || '—')}</span></td>
+      ${cols}
+      <td style="${tdC};font-weight:700">${notaBadge(media)}</td>
     </tr>`
   }).join('')
+
+  const setorTable = setorRows ? `<table style="width:100%;border-collapse:collapse">
+    <thead style="background:var(--surface)"><tr>
+      <th style="${thS}">Setor</th>
+      ${setorHeaders}
+      <th style="${thC}">Média Geral</th>
+    </tr></thead>
+    <tbody>${setorRows}</tbody>
+  </table>` : semDados(2 + trilhaList.length)
 
   grid.innerHTML = `
     <div class="report-card">
       <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">play_circle</span></div>
       <span class="report-value" style="color:var(--primary)">${cVideos || 0}</span>
-      <span class="report-label">Vídeos</span>
+      <span class="report-label">Trilhas</span>
     </div>
     <div class="report-card">
       <div class="report-card-icon" style="background:var(--secondary-soft);color:var(--secondary)"><span class="material-symbols-outlined">quiz</span></div>
@@ -2042,9 +2091,8 @@ async function loadReports() {
       <span class="report-value" style="color:#5a28a0">${cResults || 0}</span>
       <span class="report-label">Respostas</span>
     </div>
-    ${tabelaCard('domain', 'Desempenho por Setor', ['Setor', 'Módulo', 'Participantes', 'Média'], rowsSetor)}
-    ${tabelaCard('badge', 'Desempenho por Função', ['Função', 'Módulo', 'Participantes', 'Média'], rowsFuncao)}
-    ${tabelaCard('leaderboard', 'Ranking Individual', ['#', 'Nome', 'Setor', 'Função', 'Acertos', 'Nota'], rowsGeral)}
+    ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable)}
+    ${tabelaCard('leaderboard', 'Ranking Individual — desempenho por trilha', rankTable)}
   `
 }
 
