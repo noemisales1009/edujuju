@@ -149,12 +149,13 @@ function switchTab(tab) {
 // ============================================
 // LOGOUT
 // ============================================
-document.querySelector('.settings-logout').addEventListener('click', async () => {
+async function doLogout() {
   if (currentUser) {
     try { localStorage.removeItem('eduflow-profile-' + currentUser.id) } catch {}
   }
   await supabase.auth.signOut()
-})
+}
+document.querySelectorAll('.settings-logout').forEach(btn => btn.addEventListener('click', doLogout))
 
 // ============================================
 // PERFIL — carrega dados do Supabase
