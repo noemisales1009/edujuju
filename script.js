@@ -795,61 +795,93 @@ async function openFlipbook(fileUrl, title) {
     initPDFWorker()
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
     const numPages = pdf.numPages
-    const SCALE = 1.2
+    const isMobile = window.innerWidth < 640
 
     const firstPage = await pdf.getPage(1)
-    const vp = firstPage.getViewport({ scale: SCALE })
-    const W = Math.round(vp.width)
-    const H = Math.round(vp.height)
 
-    const book = document.createElement('div')
-    book.id = 'flipbookEl'
-    book.style.cssText = `width:${W * 2}px;height:${H}px;max-width:95vw`
-    container.appendChild(book)
+    if (isMobile) {
+      // Celular: páginas empilhadas com rolagem
+      const availW = window.innerWidth - 32
+      const vpRef = firstPage.getViewport({ scale: 1 })
+      const SCALE = availW / vpRef.width
 
-    if (!window.St?.PageFlip) throw new Error('Biblioteca de flipbook não carregada.')
-    const pageFlip = new St.PageFlip(book, {
-      width: W, height: H,
-      size: 'fixed',
-      showCover: true,
-      mobileScrollSupport: false,
-      drawShadow: true,
-      flippingTime: 600,
-    })
+      container.style.cssText = `display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-height:80vh;overflow-y:auto;padding:8px 0`
 
-    const canvases = []
-    for (let i = 1; i <= numPages; i++) {
-      if (msg) msg.textContent = `Renderizando página ${i} de ${numPages}...`
-      if (bar) bar.style.width = Math.round(i / numPages * 100) + '%'
-      if (pct) pct.textContent = Math.round(i / numPages * 100) + '%'
-      const page = await pdf.getPage(i)
-      const viewport = page.getViewport({ scale: SCALE })
-      const canvas = document.createElement('canvas')
-      canvas.width = W
-      canvas.height = H
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-      const wrap = document.createElement('div')
-      wrap.className = 'page'
-      wrap.style.cssText = `width:${W}px;height:${H}px;overflow:hidden;background:#fff`
-      wrap.appendChild(canvas)
-      canvases.push(wrap)
+      for (let i = 1; i <= numPages; i++) {
+        if (msg) msg.textContent = `Carregando página ${i} de ${numPages}...`
+        if (bar) bar.style.width = Math.round(i / numPages * 100) + '%'
+        if (pct) pct.textContent = Math.round(i / numPages * 100) + '%'
+        const page = await pdf.getPage(i)
+        const viewport = page.getViewport({ scale: SCALE })
+        const canvas = document.createElement('canvas')
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        canvas.style.cssText = `width:100%;max-width:${availW}px;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,0.4);background:#fff`
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+        container.appendChild(canvas)
+      }
+
+      pageInfo.textContent = `${numPages} páginas`
+      document.getElementById('flipPrev').style.display = 'none'
+      document.getElementById('flipNext').style.display = 'none'
+      loading.style.display = 'none'
+      container.style.display = 'flex'
+    } else {
+      // Desktop: flipbook com virada de página
+      const SCALE = 1.2
+      const vp = firstPage.getViewport({ scale: SCALE })
+      const W = Math.round(vp.width)
+      const H = Math.round(vp.height)
+
+      const book = document.createElement('div')
+      book.id = 'flipbookEl'
+      book.style.cssText = `width:${W * 2}px;height:${H}px;max-width:95vw`
+      container.appendChild(book)
+
+      if (!window.St?.PageFlip) throw new Error('Biblioteca de flipbook não carregada.')
+      const pageFlip = new St.PageFlip(book, {
+        width: W, height: H,
+        size: 'fixed',
+        showCover: true,
+        mobileScrollSupport: false,
+        drawShadow: true,
+        flippingTime: 600,
+      })
+
+      const canvases = []
+      for (let i = 1; i <= numPages; i++) {
+        if (msg) msg.textContent = `Renderizando página ${i} de ${numPages}...`
+        if (bar) bar.style.width = Math.round(i / numPages * 100) + '%'
+        if (pct) pct.textContent = Math.round(i / numPages * 100) + '%'
+        const page = await pdf.getPage(i)
+        const viewport = page.getViewport({ scale: SCALE })
+        const canvas = document.createElement('canvas')
+        canvas.width = W
+        canvas.height = H
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+        const wrap = document.createElement('div')
+        wrap.className = 'page'
+        wrap.style.cssText = `width:${W}px;height:${H}px;overflow:hidden;background:#fff`
+        wrap.appendChild(canvas)
+        canvases.push(wrap)
+      }
+
+      pageFlip.loadFromHTML(canvases)
+      _pageFlipInstance = pageFlip
+
+      pageFlip.on('flip', e => {
+        pageInfo.textContent = `Página ${e.data + 1} de ${numPages}`
+      })
+      pageInfo.textContent = `Página 1 de ${numPages}`
+
+      document.getElementById('flipPrev').style.display = ''
+      document.getElementById('flipNext').style.display = ''
+      document.getElementById('flipPrev').onclick = () => pageFlip.flipPrev()
+      document.getElementById('flipNext').onclick = () => pageFlip.flipNext()
+
+      loading.style.display = 'none'
+      container.style.display = 'block'
     }
-
-    pageFlip.loadFromHTML(canvases)
-    _pageFlipInstance = pageFlip
-
-    pageFlip.on('flip', e => {
-      pageInfo.textContent = `Página ${e.data + 1} de ${numPages}`
-    })
-    pageInfo.textContent = `Página 1 de ${numPages}`
-
-    document.getElementById('flipPrev').style.display = ''
-    document.getElementById('flipNext').style.display = ''
-    document.getElementById('flipPrev').onclick = () => pageFlip.flipPrev()
-    document.getElementById('flipNext').onclick = () => pageFlip.flipNext()
-
-    loading.style.display = 'none'
-    container.style.display = 'block'
   } catch (err) {
     loading.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;gap:1rem">
