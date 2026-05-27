@@ -298,6 +298,7 @@ function closeSidebar() {
 // ============================================
 let salaVideos       = []
 let currentVideoId   = null
+let _catalogItems    = []
 let quizResolved     = false
 let _currentQuestion = null
 
@@ -696,6 +697,7 @@ function switchAdminTab(tabName) {
   if (tabName === 'perguntas')         loadQuestions()
   if (tabName === 'relatorios')        loadReports()
   if (tabName === 'documentos-admin')  loadAdminDocs()
+  if (tabName === 'artigos')           loadAdminArtigos()
 }
 
 // Carrega dados ao entrar em páginas específicas
@@ -1160,30 +1162,42 @@ async function loadCatalogo() {
   const grid = document.getElementById('catalogoGrid')
   grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando vídeos...</p></div>'
 
-  const { data: videos, error } = await supabase
-    .from('videos')
-    .select('*')
-    .eq('visivel', true)
-    .order('ordem', { ascending: true })
+  const [{ data: videos, error }, { data: artigos }] = await Promise.all([
+    supabase.from('videos').select('*').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('artigos').select('*').eq('visivel', true).order('ordem', { ascending: true })
+  ])
 
-  if (error || !videos?.length) {
-    grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">play_circle</span><p>Nenhum vídeo disponível ainda.</p></div>'
+  const allItems = [
+    ...(videos || []).map(v => ({ ...v, _tipo: 'video' })),
+    ...(artigos || []).map(a => ({ ...a, _tipo: 'artigo' }))
+  ]
+
+  if (error || !allItems.length) {
+    grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">play_circle</span><p>Nenhum conteúdo disponível ainda.</p></div>'
     return
   }
 
   grid.innerHTML = ''
-  videos.forEach(v => {
-    const vid      = ytVideoId(v.youtube_url)
-    const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : null
-    const progress = getVideoProgress(v.id)
-    const badgeCls = progress === 'completed' ? 'badge-tag'
-                   : progress === 'started'   ? 'badge-progress'
+  _catalogItems = allItems
+  allItems.forEach(v => {
+    const isArtigo = v._tipo === 'artigo'
+    const vid      = !isArtigo ? ytVideoId(v.youtube_url) : null
+    const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : (isArtigo && v.imagem_url ? v.imagem_url : null)
+    const progress    = !isArtigo ? getVideoProgress(v.id) : getArtigoProgress(v.id)
+    const isConcluido = progress === 'completed'
+    const badgeCls = isConcluido                  ? 'badge-tag'
+                   : progress === 'started'        ? 'badge-progress'
                    : 'badge-neutral'
-    const badgeTxt = progress === 'completed' ? 'Concluído'
-                   : progress === 'started'   ? 'Em Andamento'
+    const badgeTxt = isArtigo && isConcluido ? 'Concluído'
+                   : isArtigo               ? 'Leitura'
+                   : isConcluido            ? 'Concluído'
+                   : progress === 'started' ? 'Em Andamento'
                    : 'Disponível'
     const pct      = progress === 'completed' ? 100
                    : progress === 'started'   ? 50 : 0
+    const cardIcon = isArtigo ? 'article' : 'play_circle'
+    const title    = isArtigo ? v.titulo : v.title
+    const desc     = isArtigo ? v.descricao : v.description
 
     const article = document.createElement('article')
     article.className = 'card'
@@ -1192,25 +1206,98 @@ async function loadCatalogo() {
     article.innerHTML = `
       <div class="card-img">
         ${thumb
-          ? `<img src="${thumb}" alt="${escHtml(v.title)}">`
-          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface)"><span class="material-symbols-outlined" style="font-size:3rem;color:var(--text-secondary)">play_circle</span></div>`}
+          ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}">`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface)"><span class="material-symbols-outlined" style="font-size:3rem;color:var(--text-secondary)">${cardIcon}</span></div>`}
         <div class="card-play-overlay">
-          <div class="card-play-circle"><span class="material-symbols-outlined">play_arrow</span></div>
+          <div class="card-play-circle"><span class="material-symbols-outlined">${isArtigo ? 'menu_book' : 'play_arrow'}</span></div>
         </div>
       </div>
       <div class="card-body">
         <div class="card-meta">
-          <span class="badge ${badgeCls}">${badgeTxt}</span>
+          <span class="badge ${isArtigo ? 'badge-neutral' : badgeCls}">${badgeTxt}</span>
           ${v.topics ? `<span style="font-size:0.75rem;color:var(--text-secondary)">${escHtml(v.topics)}</span>` : ''}
         </div>
-        <h2 class="card-title">${escHtml(v.title)}</h2>
-        ${v.description ? `<p class="card-desc">${escHtml(v.description)}</p>` : ''}
-        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <h2 class="card-title">${escHtml(title)}</h2>
+        ${desc ? `<p class="card-desc">${escHtml(desc)}</p>` : ''}
+        ${!isArtigo ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
       </div>`
-    article.addEventListener('click', () => openVideoSala(v))
-    article.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openVideoSala(v) } })
+    const handler = isArtigo ? () => openArtigo(v) : () => openVideoSala(v)
+    article.addEventListener('click', handler)
+    article.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler() } })
     grid.appendChild(article)
   })
+}
+
+function getArtigoProgress(id) {
+  if (!currentUser) return null
+  return localStorage.getItem(`eduflow-artigo-${currentUser.id}-${id}`) || null
+}
+function setArtigoProgress(id, status) {
+  if (!currentUser) return
+  localStorage.setItem(`eduflow-artigo-${currentUser.id}-${id}`, status)
+}
+
+function openArtigo(artigo) {
+  document.getElementById('artigoTituloEl').textContent    = artigo.titulo || ''
+  document.getElementById('artigoDescricaoEl').textContent = artigo.descricao || ''
+  document.getElementById('artigoConteudoEl').textContent  = artigo.conteudo || ''
+  document.getElementById('artigoPageTopics').textContent  = artigo.topics || ''
+  const imgWrap = document.getElementById('artigoImagemWrap')
+  const imgEl   = document.getElementById('artigoImagemEl')
+  if (artigo.imagem_url) {
+    imgEl.src = artigo.imagem_url
+    imgWrap.style.display = ''
+  } else {
+    imgWrap.style.display = 'none'
+  }
+
+  // Botão concluir
+  const concluirBtn  = document.getElementById('artigoConcluirBtn')
+  const proximoWrap  = document.getElementById('artigoProximoWrap')
+  const proximoBtn   = document.getElementById('artigoProximoBtn')
+  const proximoTit   = document.getElementById('artigoProximoTitulo')
+  const jaConcluido  = getArtigoProgress(artigo.id) === 'completed'
+
+  function marcarConcluido() {
+    setArtigoProgress(artigo.id, 'completed')
+    concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Concluído!'
+    concluirBtn.disabled = true
+    concluirBtn.style.opacity = '0.7'
+
+    // Próxima trilha
+    const idx   = _catalogItems.findIndex(c => c._tipo === 'artigo' && c.id === artigo.id)
+    const proximo = _catalogItems[idx + 1]
+    if (proximo) {
+      const proxTitulo = proximo._tipo === 'artigo' ? proximo.titulo : proximo.title
+      proximoTit.textContent = proxTitulo
+      proximoWrap.style.display = ''
+      proximoBtn.onclick = () => proximo._tipo === 'artigo' ? openArtigo(proximo) : openVideoSala(proximo)
+    } else {
+      proximoWrap.style.display = 'none'
+    }
+  }
+
+  if (jaConcluido) {
+    concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Concluído!'
+    concluirBtn.disabled = true
+    concluirBtn.style.opacity = '0.7'
+    const idx   = _catalogItems.findIndex(c => c._tipo === 'artigo' && c.id === artigo.id)
+    const proximo = _catalogItems[idx + 1]
+    if (proximo) {
+      const proxTitulo = proximo._tipo === 'artigo' ? proximo.titulo : proximo.title
+      proximoTit.textContent = proxTitulo
+      proximoWrap.style.display = ''
+      proximoBtn.onclick = () => proximo._tipo === 'artigo' ? openArtigo(proximo) : openVideoSala(proximo)
+    }
+  } else {
+    concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Marcar como Concluído'
+    concluirBtn.disabled = false
+    concluirBtn.style.opacity = ''
+    proximoWrap.style.display = 'none'
+    concluirBtn.onclick = marcarConcluido
+  }
+
+  window.showPage('artigo')
 }
 
 function getVideoProgress(videoId) {
@@ -1240,6 +1327,184 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
       if (overlay.id === 'modalFlipbook') closeFlipbookModal()
     }
   })
+})
+
+// ============================================
+// ADMIN — ARTIGOS
+// ============================================
+async function loadAdminArtigos() {
+  const listEl = document.getElementById('artigosList')
+  listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
+
+  const { data: artigos, error } = await supabase
+    .from('artigos').select('*').order('ordem', { ascending: true })
+
+  const count = artigos?.length || 0
+  document.getElementById('artigosCount').textContent = `${count} artigo${count !== 1 ? 's' : ''}`
+
+  if (error || !count) {
+    listEl.innerHTML = `<div class="list-empty"><span class="material-symbols-outlined">article</span><p>Nenhum artigo cadastrado ainda.</p></div>`
+    return
+  }
+
+  listEl.innerHTML = ''
+  artigos.forEach((a, i) => listEl.appendChild(renderArtigoAdminCard(a, i, artigos.length)))
+}
+
+function renderArtigoAdminCard(a, idx, total) {
+  const oculto = a.visivel === false
+  const div = document.createElement('div')
+  div.className = 'admin-list-item'
+  div.style.opacity = oculto ? '0.55' : '1'
+  div.innerHTML = `
+    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/cover no-repeat` : ''}">
+      ${!a.imagem_url ? '<span class="material-symbols-outlined">article</span>' : ''}
+    </div>
+    <div class="ali-info">
+      <div class="ali-meta">
+        <span class="badge badge-tag"><span class="material-symbols-outlined">article</span>Artigo</span>
+        ${a.topics ? `<span class="ali-extra">${escHtml(a.topics)}</span>` : ''}
+        ${oculto ? '<span class="ali-extra" style="color:#ff6b6b">● Oculto</span>' : ''}
+      </div>
+      <h4 class="ali-title">${escHtml(a.titulo)}</h4>
+      ${a.descricao ? `<p class="ali-desc">${escHtml(a.descricao)}</p>` : ''}
+    </div>
+    <div class="ali-actions" style="flex-direction:column;gap:0.25rem">
+      <div style="display:flex;gap:0.25rem">
+        <button class="btn-icon" title="Mover para cima" ${idx === 0 ? 'disabled' : ''} onclick="moveArtigo(${a.id}, -1)">
+          <span class="material-symbols-outlined">arrow_upward</span>
+        </button>
+        <button class="btn-icon" title="Mover para baixo" ${idx === total - 1 ? 'disabled' : ''} onclick="moveArtigo(${a.id}, 1)">
+          <span class="material-symbols-outlined">arrow_downward</span>
+        </button>
+      </div>
+      <div style="display:flex;gap:0.25rem">
+        <button class="btn-icon" title="Editar" onclick="editArtigo(${a.id})">
+          <span class="material-symbols-outlined">edit</span>
+        </button>
+        <button class="btn-icon btn-danger" title="Excluir" onclick="deleteArtigo(${a.id})">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
+      </div>
+    </div>`
+  return div
+}
+
+async function moveArtigo(id, direction) {
+  const { data: artigos } = await supabase.from('artigos').select('id, ordem').order('ordem', { ascending: true })
+  if (!artigos) return
+  const idx  = artigos.findIndex(a => a.id === id)
+  const swap = artigos[idx + direction]
+  if (!swap) return
+  await Promise.all([
+    supabase.from('artigos').update({ ordem: swap.ordem }).eq('id', id),
+    supabase.from('artigos').update({ ordem: artigos[idx].ordem }).eq('id', swap.id)
+  ])
+  loadAdminArtigos()
+}
+window.moveArtigo = moveArtigo
+
+async function deleteArtigo(id) {
+  if (!confirm('Tem certeza que deseja excluir este artigo?')) return
+  await supabase.from('artigos').delete().eq('id', id)
+  loadAdminArtigos()
+}
+window.deleteArtigo = deleteArtigo
+
+async function editArtigo(id) {
+  const { data } = await supabase.from('artigos').select('*').eq('id', id).single()
+  if (data) openArtigoModal(data)
+}
+window.editArtigo = editArtigo
+
+let editingArtigoId  = null
+let _artigoImagemUrl = null
+
+document.getElementById('btnAddArtigo').addEventListener('click', () => openArtigoModal())
+document.getElementById('closeModalArtigo').addEventListener('click', closeArtigoModal)
+document.getElementById('cancelArtigo').addEventListener('click', closeArtigoModal)
+
+document.getElementById('artigoImagemFile').addEventListener('change', e => {
+  const file    = e.target.files[0]
+  const preview = document.getElementById('artigoImagemPreview')
+  if (file) {
+    preview.src          = URL.createObjectURL(file)
+    preview.style.display = ''
+  } else {
+    preview.style.display = 'none'
+  }
+})
+
+function openArtigoModal(artigo = null) {
+  editingArtigoId  = null
+  _artigoImagemUrl = null
+  document.getElementById('formArtigo').reset()
+  document.getElementById('artigoError').textContent    = ''
+  document.getElementById('artigoImagemPreview').style.display = 'none'
+  document.getElementById('modalArtigoTitle').textContent = artigo ? 'Editar Artigo' : 'Novo Artigo'
+  document.getElementById('saveArtigoBtn').textContent   = artigo ? 'Salvar Alterações' : 'Salvar Artigo'
+
+  if (artigo) {
+    editingArtigoId  = artigo.id
+    _artigoImagemUrl = artigo.imagem_url || null
+    document.getElementById('artigoTitulo').value    = artigo.titulo || ''
+    document.getElementById('artigoDescricao').value = artigo.descricao || ''
+    document.getElementById('artigoTopics').value    = artigo.topics || ''
+    document.getElementById('artigoConteudo').value  = artigo.conteudo || ''
+    document.getElementById('artigoVisivel').checked = artigo.visivel !== false
+    if (artigo.imagem_url) {
+      const preview = document.getElementById('artigoImagemPreview')
+      preview.src          = artigo.imagem_url
+      preview.style.display = ''
+    }
+  }
+  document.getElementById('modalArtigo').classList.add('open')
+}
+function closeArtigoModal() {
+  document.getElementById('modalArtigo').classList.remove('open')
+}
+
+document.getElementById('formArtigo').addEventListener('submit', async e => {
+  e.preventDefault()
+  const btn       = e.target.querySelector('[type="submit"]')
+  const errorEl   = document.getElementById('artigoError')
+  const titulo    = document.getElementById('artigoTitulo').value.trim()
+  const descricao = document.getElementById('artigoDescricao').value.trim()
+  const topics    = document.getElementById('artigoTopics').value.trim()
+  const conteudo  = document.getElementById('artigoConteudo').value.trim()
+  const visivel   = document.getElementById('artigoVisivel').checked
+  const fileInput = document.getElementById('artigoImagemFile')
+  const file      = fileInput.files[0]
+
+  if (!titulo || !conteudo) { errorEl.textContent = 'Preencha o título e o conteúdo.'; return }
+
+  setLoading(btn, true, 'Salvando...')
+  errorEl.textContent = ''
+
+  let imagemUrl = _artigoImagemUrl
+  if (file) {
+    const ext  = file.name.split('.').pop()
+    const path = `artigos/${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('imagens').upload(path, file, { upsert: true })
+    if (upErr) {
+      errorEl.textContent = 'Erro ao enviar imagem: ' + upErr.message
+      setLoading(btn, false, editingArtigoId ? 'Salvar Alterações' : 'Salvar Artigo')
+      return
+    }
+    const { data: urlData } = supabase.storage.from('imagens').getPublicUrl(path)
+    imagemUrl = urlData.publicUrl
+  }
+
+  const payload = { titulo, descricao: descricao || null, topics: topics || null, imagem_url: imagemUrl || null, conteudo, visivel }
+
+  const { error } = editingArtigoId
+    ? await supabase.from('artigos').update(payload).eq('id', editingArtigoId)
+    : await supabase.from('artigos').insert(payload)
+
+  setLoading(btn, false, editingArtigoId ? 'Salvar Alterações' : 'Salvar Artigo')
+  if (error) { errorEl.textContent = 'Erro: ' + error.message; return }
+  closeArtigoModal()
+  loadAdminArtigos()
 })
 
 // ============================================
