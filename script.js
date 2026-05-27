@@ -464,7 +464,7 @@ async function renderSalaQuiz(videoId) {
   document.getElementById('quizQuestion').textContent = q.question
   document.getElementById('quizOptions').innerHTML = [q.option_a, q.option_b, q.option_c, q.option_d]
     .map((text, i) => `
-      <label class="quiz-opt" data-correct="${i === q.correct_index}">
+      <label class="quiz-opt">
         <input type="radio" name="salaQuiz" value="${i}">
         <span>${escHtml(text)}</span>
       </label>`).join('')
@@ -487,7 +487,7 @@ async function renderSalaQuiz(videoId) {
         opt.classList.add('disabled')
         const input = opt.querySelector('input')
         if (input) input.disabled = true
-        if (opt.dataset.correct === 'true') opt.classList.add('correct')
+        if (i === q.correct_index) opt.classList.add('correct')
         if (i === resposta.chosen_index && !resposta.is_correct) opt.classList.add('wrong')
         if (i === resposta.chosen_index && resposta.is_correct)  {
           const radio = opt.querySelector('input')
@@ -544,14 +544,14 @@ async function handleQuiz() {
   }
 
   const chosenLabel = selected.closest('.quiz-opt')
-  const isCorrect   = chosenLabel.dataset.correct === 'true'
   const chosenIndex = parseInt(selected.value)
+  const isCorrect   = chosenIndex === _currentQuestion?.correct_index
 
   document.querySelectorAll('.quiz-opt').forEach((opt, i) => {
     opt.classList.add('disabled')
     const input = opt.querySelector('input')
     if (input) input.disabled = true
-    if (opt.dataset.correct === 'true') opt.classList.add('correct')
+    if (i === _currentQuestion?.correct_index) opt.classList.add('correct')
   })
 
   const justif = _currentQuestion?.justification
@@ -909,11 +909,12 @@ async function openFlipbook(fileUrl, title) {
   } catch (err) {
     document.getElementById('flipNav').style.display = 'none'
     loading.style.display = 'flex'
+    const isSafeUrl = typeof fileUrl === 'string' && fileUrl.startsWith('https://')
     loading.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;gap:1rem">
         <span class="material-symbols-outlined" style="font-size:2rem;color:#ff6b6b">error</span>
         <span style="color:#ff6b6b;font-size:0.9rem">Erro ao carregar o documento.</span>
-        <a href="${fileUrl}" target="_blank" style="color:var(--primary);font-size:0.875rem;text-decoration:underline">Abrir PDF diretamente ↗</a>
+        ${isSafeUrl ? `<a href="${escHtml(fileUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);font-size:0.875rem;text-decoration:underline">Abrir PDF diretamente ↗</a>` : ''}
       </div>`
     console.error('[Flipbook]', err)
   }
