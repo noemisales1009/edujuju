@@ -1009,6 +1009,8 @@ async function openFlipbook(fileUrl, title) {
       await renderPage(1)
 
       flipNav.style.display = 'flex'
+      document.getElementById('flipPrev').style.display = ''
+      document.getElementById('flipNext').style.display = ''
       document.getElementById('flipPrev').onclick = async () => {
         if (currentPageNum > 1) { currentPageNum--; await renderPage(currentPageNum) }
       }
