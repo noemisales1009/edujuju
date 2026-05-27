@@ -1471,6 +1471,39 @@ ul { list-style: none; }
 .report-value { font-size: 2rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
 .report-label { font-size: 0.75rem; color: var(--on-surface-var); font-weight: 500; }
 
+@media (max-width: 640px) {
+  .resp-table-wrap { -webkit-overflow-scrolling: touch; }
+  .resp-table th,
+  .resp-table td {
+    padding: 0.35rem 0.4rem !important;
+    font-size: 0.7rem !important;
+  }
+  /* Cabeçalhos das colunas dinâmicas: quebra em palavras, sem cortar no meio */
+  .resp-table th:not(:first-child) {
+    white-space: normal !important;
+    word-break: normal;
+    overflow-wrap: break-word;
+    line-height: 1.25;
+    min-width: 4rem;
+  }
+  .resp-table th:first-child,
+  .resp-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--card-bg, #1a1a2e);
+    border-right: 1px solid var(--border);
+  }
+  .resp-table thead th:first-child {
+    background: var(--surface, #252535);
+    z-index: 3;
+  }
+  .resp-table tbody tr:hover td:first-child {
+    background: var(--surface, #252535);
+  }
+  .resp-bar { min-width: 60px !important; }
+}
+
 /* ---- 20. Admin list items (horizontal card) ---- */
 .admin-list-item {
   display: flex;

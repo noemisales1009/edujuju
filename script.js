@@ -1727,10 +1727,10 @@ async function loadQuestions() {
   const listEl = document.getElementById('questionsList')
   listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
 
-  const { data: questions, error } = await supabase
-    .from('questoes_sala_de_aula')
-    .select('*, videos(title)')
-    .order('created_at', { ascending: false })
+  const [{ data: questions, error }, { data: videos }] = await Promise.all([
+    supabase.from('questoes_sala_de_aula').select('*').order('created_at', { ascending: false }),
+    supabase.from('videos').select('id, title')
+  ])
 
   if (error) {
     listEl.innerHTML = `
@@ -1755,11 +1755,14 @@ async function loadQuestions() {
     return
   }
 
+  const videoMap = {}
+  videos?.forEach(v => { videoMap[v.id] = v.title })
+
   listEl.innerHTML = ''
-  questions.forEach(q => listEl.appendChild(renderQuestionCard(q)))
+  questions.forEach(q => listEl.appendChild(renderQuestionCard(q, videoMap)))
 }
 
-function renderQuestionCard(q) {
+function renderQuestionCard(q, videoMap = {}) {
   const opts = [
     { l: 'A', t: q.option_a },
     { l: 'B', t: q.option_b },
@@ -1777,7 +1780,7 @@ function renderQuestionCard(q) {
       <div class="ali-meta">
         <span class="badge badge-progress">Pergunta</span>
         ${q.category ? `<span class="badge badge-neutral">${escHtml(q.category)}</span>` : ''}
-        ${q.videos ? `<span class="badge badge-tag"><span class="material-symbols-outlined">play_circle</span>${escHtml(q.videos.title)}</span>` : ''}
+        ${videoMap[q.video_id] ? `<span class="badge badge-tag"><span class="material-symbols-outlined">play_circle</span>${escHtml(videoMap[q.video_id])}</span>` : ''}
       </div>
       <h4 class="ali-title">${escHtml(q.question)}</h4>
       <div class="ali-opts-row">
@@ -1816,7 +1819,7 @@ window.deleteQuestion = deleteQuestion
 let selectedAnswer = ''
 let editingQuestionId = null
 
-document.getElementById('btnAddQuiz').addEventListener('click', openQuizModal)
+document.getElementById('btnAddQuiz').addEventListener('click', () => openQuizModal())
 document.getElementById('closeModalQuiz').addEventListener('click', closeQuizModal)
 document.getElementById('cancelQuiz').addEventListener('click', closeQuizModal)
 
@@ -1960,7 +1963,7 @@ async function loadReports() {
   const barra = pct => {
     const n = Number(pct) || 0
     const fill = n >= 70 ? '#43a047' : n >= 50 ? '#fbc02d' : '#e53935'
-    return `<div style="display:flex;align-items:center;gap:0.4rem;min-width:120px">
+    return `<div class="resp-bar" style="display:flex;align-items:center;gap:0.4rem;min-width:120px">
       <div style="flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden">
         <div style="height:100%;width:${n}%;background:${fill};border-radius:3px"></div>
       </div>
@@ -1974,10 +1977,10 @@ async function loadReports() {
         <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.2rem">${icon}</span>
         <span style="font-size:0.9rem;font-weight:600;color:var(--text-primary)">${titulo}</span>
       </div>
-      <div style="overflow-x:auto">${conteudo}</div>
+      <div class="resp-table-wrap" style="overflow-x:auto">${conteudo}</div>
     </div>`
 
-  const semDados = cols => `<table style="width:100%;border-collapse:collapse">
+  const semDados = cols => `<table class="resp-table" style="width:100%;border-collapse:collapse">
     <tbody><tr><td colspan="${cols}" style="${tdS};text-align:center;padding:2rem">
       <span style="color:var(--text-secondary);font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</span>
     </td></tr></tbody></table>`
@@ -2029,7 +2032,7 @@ async function loadReports() {
     </tr>`
   }).join('') : null
 
-  const rankTable = `<table style="width:100%;border-collapse:collapse">
+  const rankTable = `<table class="resp-table" style="width:100%;border-collapse:collapse">
     <thead style="background:var(--surface)"><tr>
       <th style="${thS}">#</th>
       <th style="${thS}">Nome</th>
@@ -2061,7 +2064,7 @@ async function loadReports() {
     </tr>`
   }).join('')
 
-  const setorTable = setorRows ? `<table style="width:100%;border-collapse:collapse">
+  const setorTable = setorRows ? `<table class="resp-table" style="width:100%;border-collapse:collapse">
     <thead style="background:var(--surface)"><tr>
       <th style="${thS}">Setor</th>
       ${setorHeaders}
