@@ -1602,10 +1602,40 @@ function setArtigoProgress(id, status) {
   localStorage.setItem(`eduflow-artigo-${currentUser.id}-${id}`, status)
 }
 
+function blocksToHtml(blocks = []) {
+  return blocks.map(b => {
+    switch (b.type) {
+      case 'header':
+        return `<h${b.data.level}>${b.data.text}</h${b.data.level}>`
+      case 'paragraph':
+        return `<p>${b.data.text}</p>`
+      case 'list': {
+        const tag   = b.data.style === 'ordered' ? 'ol' : 'ul'
+        const items = b.data.items.map(i => `<li>${typeof i === 'string' ? i : i.content}</li>`).join('')
+        return `<${tag}>${items}</${tag}>`
+      }
+      case 'image': {
+        const url     = b.data.file?.url || b.data.url || ''
+        const caption = b.data.caption || ''
+        return `<figure><img src="${escHtml(url)}" alt="${escHtml(caption)}">${caption ? `<figcaption>${escHtml(caption)}</figcaption>` : ''}</figure>`
+      }
+      case 'delimiter':
+        return '<hr>'
+      default:
+        return ''
+    }
+  }).join('')
+}
+
 function openArtigo(artigo) {
   document.getElementById('artigoTituloEl').textContent    = artigo.titulo || ''
   document.getElementById('artigoDescricaoEl').textContent = artigo.descricao || ''
-  document.getElementById('artigoConteudoEl').textContent  = artigo.conteudo || ''
+  const conteudoEl = document.getElementById('artigoConteudoEl')
+  if (artigo.conteudo_blocos?.blocks?.length) {
+    conteudoEl.innerHTML = blocksToHtml(artigo.conteudo_blocos.blocks)
+  } else {
+    conteudoEl.innerHTML = `<p style="white-space:pre-wrap">${escHtml(artigo.conteudo || '')}</p>`
+  }
   document.getElementById('artigoPageTopics').textContent  = artigo.topics || ''
   const imgWrap = document.getElementById('artigoImagemWrap')
   const imgEl   = document.getElementById('artigoImagemEl')
@@ -1800,14 +1830,16 @@ document.getElementById('artigoImagemFile').addEventListener('change', e => {
   }
 })
 
-function openArtigoModal(artigo = null) {
+let _artigoEditor = null
+
+async function openArtigoModal(artigo = null) {
   editingArtigoId  = null
   _artigoImagemUrl = null
   document.getElementById('formArtigo').reset()
-  document.getElementById('artigoError').textContent    = ''
+  document.getElementById('artigoError').textContent     = ''
   document.getElementById('artigoImagemPreview').style.display = 'none'
-  document.getElementById('modalArtigoTitle').textContent = artigo ? 'Editar Artigo' : 'Novo Artigo'
-  document.getElementById('saveArtigoBtn').textContent   = artigo ? 'Salvar Alterações' : 'Salvar Artigo'
+  document.getElementById('modalArtigoTitle').textContent  = artigo ? 'Editar Artigo' : 'Novo Artigo'
+  document.getElementById('saveArtigoBtn').textContent     = artigo ? 'Salvar Alterações' : 'Salvar Artigo'
 
   if (artigo) {
     editingArtigoId  = artigo.id
@@ -1815,18 +1847,58 @@ function openArtigoModal(artigo = null) {
     document.getElementById('artigoTitulo').value    = artigo.titulo || ''
     document.getElementById('artigoDescricao').value = artigo.descricao || ''
     document.getElementById('artigoTopics').value    = artigo.topics || ''
-    document.getElementById('artigoConteudo').value  = artigo.conteudo || ''
     document.getElementById('artigoVisivel').checked = artigo.visivel !== false
     if (artigo.imagem_url) {
       const preview = document.getElementById('artigoImagemPreview')
-      preview.src          = artigo.imagem_url
+      preview.src           = artigo.imagem_url
       preview.style.display = ''
     }
   }
+
+  // Destrói editor anterior se existir
+  if (_artigoEditor) { try { await _artigoEditor.destroy() } catch (_) {} _artigoEditor = null }
+
+  const initialData = artigo?.conteudo_blocos || {
+    blocks: artigo?.conteudo
+      ? [{ type: 'paragraph', data: { text: artigo.conteudo } }]
+      : []
+  }
+
+  _artigoEditor = new EditorJS({
+    holder: 'artigoEditor',
+    placeholder: 'Escreva o conteúdo aqui... Selecione texto para formatar.',
+    data: initialData,
+    tools: {
+      header:     { class: Header,    inlineToolbar: true, config: { levels: [2, 3, 4], defaultLevel: 2 } },
+      list:       { class: List,      inlineToolbar: true },
+      image: {
+        class: ImageTool,
+        config: {
+          uploader: {
+            async uploadByFile(file) {
+              const ext  = file.name.split('.').pop()
+              const path = `artigos/${Date.now()}.${ext}`
+              const { error } = await supabase.storage.from('imagens').upload(path, file, { upsert: true })
+              if (error) return { success: 0 }
+              const { data } = supabase.storage.from('imagens').getPublicUrl(path)
+              return { success: 1, file: { url: data.publicUrl } }
+            }
+          }
+        }
+      },
+      delimiter:  { class: Delimiter },
+      Marker:     { class: Marker },
+      underline:  { class: Underline },
+      inlineCode: { class: InlineCode },
+    },
+  })
+
   document.getElementById('modalArtigo').classList.add('open')
 }
-function closeArtigoModal() {
+
+async function closeArtigoModal() {
   document.getElementById('modalArtigo').classList.remove('open')
+  if (_artigoEditor) { try { await _artigoEditor.destroy() } catch (_) {} _artigoEditor = null }
 }
 
 document.getElementById('formArtigo').addEventListener('submit', async e => {
@@ -1836,12 +1908,22 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
   const titulo    = document.getElementById('artigoTitulo').value.trim()
   const descricao = document.getElementById('artigoDescricao').value.trim()
   const topics    = document.getElementById('artigoTopics').value.trim()
-  const conteudo  = document.getElementById('artigoConteudo').value.trim()
   const visivel   = document.getElementById('artigoVisivel').checked
   const fileInput = document.getElementById('artigoImagemFile')
   const file      = fileInput.files[0]
 
-  if (!titulo || !conteudo) { errorEl.textContent = 'Preencha o título e o conteúdo.'; return }
+  // Salva blocos do Editor.js
+  let conteudoBlocos = null
+  let conteudo = ''
+  if (_artigoEditor) {
+    try {
+      const saved = await _artigoEditor.save()
+      conteudoBlocos = saved
+      conteudo = saved.blocks.map(b => b.data?.text || b.data?.caption || '').filter(Boolean).join('\n')
+    } catch (_) {}
+  }
+
+  if (!titulo || !conteudoBlocos?.blocks?.length) { errorEl.textContent = 'Preencha o título e o conteúdo.'; return }
 
   setLoading(btn, true, 'Salvando...')
   errorEl.textContent = ''
@@ -1860,7 +1942,7 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
     imagemUrl = urlData.publicUrl
   }
 
-  const payload = { titulo, descricao: descricao || null, topics: topics || null, imagem_url: imagemUrl || null, conteudo, visivel }
+  const payload = { titulo, descricao: descricao || null, topics: topics || null, imagem_url: imagemUrl || null, conteudo, conteudo_blocos: conteudoBlocos, visivel }
 
   const { error } = editingArtigoId
     ? await supabase.from('artigos').update(payload).eq('id', editingArtigoId)
