@@ -894,39 +894,47 @@ async function loadPerfilConquistas() {
   let desbloqueadas = 0
 
   const cards = trilhas.map(([nome, ids], i) => {
-    const total     = ids.length
+    const total      = ids.length
     const concluidos = ids.filter(id => getVideoProgress(id) === 'completed').length
-    const progPct   = Math.round(concluidos / total * 100)
 
-    // Média de nota das aulas com resposta
-    const notas = ids.map(id => notaMap[id]).filter(n => n !== undefined)
-    const avgNota = notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null
+    // Vídeos com nota (respondeu quiz, mesmo sem marcar como concluído no local)
+    const idsComNota = ids.filter(id => notaMap[id] !== undefined)
+    const notas      = idsComNota.map(id => notaMap[id])
+    const avgNota    = notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null
+
+    // Progresso: conta vídeo como feito se concluído no local OU se tem nota
+    const engajados = new Set([
+      ...ids.filter(id => getVideoProgress(id) === 'completed'),
+      ...idsComNota
+    ])
+    const engajadosCount = engajados.size
+    const progPct = Math.round(engajadosCount / total * 100)
 
     const allDone = concluidos === total
-    if (allDone) desbloqueadas++
 
-    // Nível da medalha baseado na nota média
+    // Nível: allDone → medalha por nota | tem engajamento → em progresso | nada → bloqueado
     let level = 'locked'
     if (allDone) {
+      desbloqueadas++
       if      (avgNota === null || avgNota >= 90) level = 'gold'
       else if (avgNota >= 70)                     level = 'silver'
-      else if (avgNota >= 50)                     level = 'bronze'
-      else                                         level = 'bronze'
-    } else if (concluidos > 0) {
+      else                                        level = 'bronze'
+    } else if (engajadosCount > 0) {
       level = 'started'
     }
 
-    const emoji = TRILHA_EMOJIS[i % TRILHA_EMOJIS.length]
+    const emoji     = TRILHA_EMOJIS[i % TRILHA_EMOJIS.length]
     const badgeIcon = level === 'locked' ? '🔒' : emoji
 
+    // Nota só aparece se tem dado real; senão mostra progresso em aulas
     const notaLabel = avgNota !== null
       ? `${avgNota}%`
-      : allDone ? '—' : `${concluidos}/${total} aulas`
+      : `${engajadosCount}/${total} aulas`
 
-    const levelLabel = level === 'gold'   ? '🥇 Ouro'
-                     : level === 'silver' ? '🥈 Prata'
-                     : level === 'bronze' ? '🥉 Bronze'
-                     : level === 'started'? 'Em progresso'
+    const levelLabel = level === 'gold'    ? '🥇 Ouro'
+                     : level === 'silver'  ? '🥈 Prata'
+                     : level === 'bronze'  ? '🥉 Bronze'
+                     : level === 'started' ? 'Em progresso'
                      : 'Bloqueado'
 
     return `
