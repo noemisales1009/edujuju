@@ -2048,6 +2048,8 @@ async function loadReports() {
   `
 }
 
+document.getElementById('btnGerarPDF')?.addEventListener('click', () => window.print())
+
 // ============================================
 // HELPERS
 // ============================================
