@@ -308,7 +308,7 @@ if (confirmBtn) confirmBtn.addEventListener('click', handleQuiz)
 
 async function loadSalaDeAula() {
   const { data: videos } = await supabase
-    .from('videos').select('*').order('created_at')
+    .from('videos').select('*').order('ordem', { ascending: true })
   salaVideos = videos || []
 
   const emptyEl  = document.getElementById('salaEmpty')
@@ -443,6 +443,20 @@ async function renderSalaVideo(video) {
   updateNextBtnState()
 }
 
+function renderTextoAula(texto) {
+  let el = document.getElementById('textoAulaCard')
+  if (!texto) { if (el) el.remove(); return }
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'textoAulaCard'
+    el.className = 'surface-card'
+    el.style.cssText = 'margin-top:1rem;line-height:1.7;white-space:pre-wrap'
+    const quizCard = document.getElementById('salaQuizCard')
+    quizCard?.insertAdjacentElement('afterend', el)
+  }
+  el.innerHTML = `<h3 style="font-size:1rem;margin-bottom:0.75rem">Leitura da Aula</h3><p style="color:var(--text-secondary)">${escHtml(texto)}</p>`
+}
+
 function updateNextBtnState() {
   const nextBtn  = document.getElementById('nextBtn')
   if (!nextBtn) return
@@ -469,7 +483,13 @@ async function renderSalaQuiz(videoId) {
     .eq('video_id', videoId)
     .limit(1)
 
-  if (!questions?.length) { quizCard.style.display = 'none'; return }
+  if (!questions?.length) {
+    quizCard.style.display = 'none'
+    const video = salaVideos.find(v => v.id === videoId)
+    renderTextoAula(video?.texto_aula || null)
+    return
+  }
+  renderTextoAula(null)
 
   const q = questions[0]
   _currentQuestion = q
@@ -1143,7 +1163,8 @@ async function loadCatalogo() {
   const { data: videos, error } = await supabase
     .from('videos')
     .select('*')
-    .order('created_at', { ascending: true })
+    .eq('visivel', true)
+    .order('ordem', { ascending: true })
 
   if (error || !videos?.length) {
     grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">play_circle</span><p>Nenhum vídeo disponível ainda.</p></div>'
@@ -1231,7 +1252,7 @@ async function loadVideos() {
   const { data: videos, error } = await supabase
     .from('videos')
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('ordem', { ascending: true })
 
   const count = videos?.length || 0
   document.getElementById('videosCount').textContent =
@@ -1247,16 +1268,18 @@ async function loadVideos() {
   }
 
   listEl.innerHTML = ''
-  videos.forEach(v => listEl.appendChild(renderVideoCard(v)))
+  videos.forEach((v, i) => listEl.appendChild(renderVideoCard(v, i, videos.length)))
   populateVideoSelect(videos)
 }
 
-function renderVideoCard(v) {
+function renderVideoCard(v, idx, total) {
   const vid      = ytVideoId(v.youtube_url)
   const thumbUrl = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : null
+  const oculto   = v.visivel === false
 
   const div = document.createElement('div')
   div.className = 'admin-list-item'
+  div.style.opacity = oculto ? '0.55' : '1'
   div.innerHTML = `
     <div class="ali-thumb ${thumbUrl ? '' : 'ali-thumb-video'}">
       ${thumbUrl
@@ -1268,20 +1291,45 @@ function renderVideoCard(v) {
       <div class="ali-meta">
         <span class="badge badge-tag"><span class="material-symbols-outlined">videocam</span>Vídeo</span>
         ${v.topics ? `<span class="ali-extra">${escHtml(v.topics)}</span>` : ''}
+        ${oculto ? '<span class="ali-extra" style="color:#ff6b6b">● Oculto</span>' : ''}
       </div>
       <h4 class="ali-title">${escHtml(v.title)}</h4>
       ${v.description ? `<p class="ali-desc">${escHtml(v.description)}</p>` : ''}
     </div>
-    <div class="ali-actions">
-      <button class="btn-icon" title="Editar" onclick="editVideo('${v.id}')">
-        <span class="material-symbols-outlined">edit</span>
-      </button>
-      <button class="btn-icon btn-danger" title="Excluir" onclick="deleteVideo('${v.id}')">
-        <span class="material-symbols-outlined">delete</span>
-      </button>
+    <div class="ali-actions" style="flex-direction:column;gap:0.25rem">
+      <div style="display:flex;gap:0.25rem">
+        <button class="btn-icon" title="Mover para cima" ${idx === 0 ? 'disabled' : ''} onclick="moveVideo(${v.id}, -1)">
+          <span class="material-symbols-outlined">arrow_upward</span>
+        </button>
+        <button class="btn-icon" title="Mover para baixo" ${idx === total - 1 ? 'disabled' : ''} onclick="moveVideo(${v.id}, 1)">
+          <span class="material-symbols-outlined">arrow_downward</span>
+        </button>
+      </div>
+      <div style="display:flex;gap:0.25rem">
+        <button class="btn-icon" title="Editar" onclick="editVideo('${v.id}')">
+          <span class="material-symbols-outlined">edit</span>
+        </button>
+        <button class="btn-icon btn-danger" title="Excluir" onclick="deleteVideo('${v.id}')">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
+      </div>
     </div>`
   return div
 }
+
+async function moveVideo(id, direction) {
+  const { data: videos } = await supabase.from('videos').select('id, ordem').order('ordem', { ascending: true })
+  if (!videos) return
+  const idx  = videos.findIndex(v => v.id === id)
+  const swap = videos[idx + direction]
+  if (!swap) return
+  await Promise.all([
+    supabase.from('videos').update({ ordem: swap.ordem }).eq('id', id),
+    supabase.from('videos').update({ ordem: videos[idx].ordem }).eq('id', swap.id)
+  ])
+  loadVideos()
+}
+window.moveVideo = moveVideo
 
 function populateVideoSelect(videos) {
   const sel = document.getElementById('qVideoId')
@@ -1327,10 +1375,12 @@ function openVideoModal(video = null) {
 
   if (video) {
     editingVideoId = video.id
-    document.getElementById('videoTitle').value  = video.title || ''
-    document.getElementById('videoDesc').value   = video.description || ''
-    document.getElementById('videoUrl').value    = video.youtube_url || ''
-    document.getElementById('videoTopics').value = video.topics || ''
+    document.getElementById('videoTitle').value      = video.title || ''
+    document.getElementById('videoDesc').value       = video.description || ''
+    document.getElementById('videoUrl').value        = video.youtube_url || ''
+    document.getElementById('videoTopics').value     = video.topics || ''
+    document.getElementById('videoTextoAula').value  = video.texto_aula || ''
+    document.getElementById('videoVisivel').checked  = video.visivel !== false
 
     const embedUrl = ytEmbedUrl(video.youtube_url)
     if (embedUrl) {
@@ -1362,10 +1412,12 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
   e.preventDefault()
   const btn      = e.target.querySelector('[type="submit"]')
   const errorEl  = document.getElementById('videoError')
-  const title  = document.getElementById('videoTitle').value.trim()
-  const desc   = document.getElementById('videoDesc').value.trim()
-  const url    = document.getElementById('videoUrl').value.trim()
-  const topics = document.getElementById('videoTopics').value.trim()
+  const title      = document.getElementById('videoTitle').value.trim()
+  const desc       = document.getElementById('videoDesc').value.trim()
+  const url        = document.getElementById('videoUrl').value.trim()
+  const topics     = document.getElementById('videoTopics').value.trim()
+  const textoAula  = document.getElementById('videoTextoAula').value.trim()
+  const visivel    = document.getElementById('videoVisivel').checked
 
   if (!title || !url) {
     errorEl.textContent = 'Preencha o título e o link do YouTube.'
@@ -1375,7 +1427,7 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
   setLoading(btn, true, 'Salvando...')
   errorEl.textContent = ''
 
-  const payload = { title, description: desc || null, youtube_url: url, topics: topics || null }
+  const payload = { title, description: desc || null, youtube_url: url, topics: topics || null, texto_aula: textoAula || null, visivel }
 
   let result
   try {
