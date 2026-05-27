@@ -985,6 +985,90 @@ async function loadPerfilConquistas() {
   if (counter) counter.textContent = `${desbloqueadas} de ${trilhas.length}`
 
   grid.innerHTML = cards.join('')
+
+  // ── Conquistas Especiais ──
+  const specialGrid = document.getElementById('achievementsSpecialGrid')
+  if (!specialGrid) return
+
+  // Dados resumidos para as condições
+  const trilhasInfo = trilhas.map(([, ids]) => {
+    const total      = ids.length
+    const concluidos = ids.filter(id => getVideoProgress(id) === 'completed').length
+    const notas      = ids.map(id => notaMap[id]).filter(n => n !== undefined)
+    const avgNota    = notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null
+    return { total, concluidos, allDone: concluidos === total, avgNota }
+  })
+  const totalTrilhas   = trilhasInfo.length
+  const concluidasInfo = trilhasInfo.filter(t => t.allDone)
+
+  const SPECIALS = [
+    {
+      id: 'first_step',
+      name: 'Primeiro Passo',
+      desc: 'Concluiu a 1ª trilha',
+      icon: 'flag',
+      unlocked: concluidasInfo.length >= 1,
+    },
+    {
+      id: 'always_gold',
+      name: 'Sempre Ouro',
+      desc: 'Ouro em todas as trilhas concluídas (≥ 90%)',
+      icon: 'workspace_premium',
+      unlocked: concluidasInfo.length >= 1 &&
+                concluidasInfo.every(t => t.avgNota === null || t.avgNota >= 90),
+    },
+    {
+      id: 'perfectionist',
+      name: 'Perfecionista',
+      desc: 'Nota 100% em alguma trilha',
+      icon: 'star',
+      unlocked: trilhasInfo.some(t => t.avgNota === 100),
+    },
+    {
+      id: 'champion',
+      name: 'Campeão',
+      desc: 'Concluiu todas as trilhas disponíveis',
+      icon: 'emoji_events',
+      unlocked: totalTrilhas > 0 && concluidasInfo.length === totalTrilhas,
+    },
+    {
+      id: 'on_fire',
+      name: 'Em Chamas',
+      desc: 'Ouro em 3 ou mais trilhas',
+      icon: 'local_fire_department',
+      unlocked: concluidasInfo.filter(t => t.avgNota === null || t.avgNota >= 90).length >= 3,
+    },
+    {
+      id: 'no_mistakes',
+      name: 'Sem Erros',
+      desc: 'Acertou tudo em alguma aula',
+      icon: 'gpp_good',
+      unlocked: (notasRaw || []).some(r => Number(r.nota_pct) === 100),
+    },
+  ]
+
+  const unlockedSpecials = SPECIALS.filter(s => s.unlocked).length
+  const scCounter = document.getElementById('achievementsSpecialCounter')
+  if (scCounter) scCounter.textContent = `${unlockedSpecials} de ${SPECIALS.length}`
+
+  specialGrid.innerHTML = SPECIALS.map(s => {
+    const badgeCls = s.unlocked ? 'special-unlocked' : 'special-locked'
+    const cardCls  = s.unlocked ? 'special unlocked' : 'special locked'
+    const notaEl   = s.unlocked
+      ? `<span class="ach-nota special">Desbloqueado</span>`
+      : `<span class="ach-nota none">Bloqueado</span>`
+    return `
+      <div class="ach-card ${cardCls}">
+        <div class="ach-badge ${badgeCls}">
+          <span class="material-symbols-outlined icon-filled">${s.icon}</span>
+        </div>
+        <div class="ach-name">${escHtml(s.name)}</div>
+        ${notaEl}
+        <div class="ach-prog-wrap">
+          <div class="ach-prog-label"><span style="font-size:0.6rem;line-height:1.4">${escHtml(s.desc)}</span></div>
+        </div>
+      </div>`
+  }).join('')
 }
 
 // ============================================

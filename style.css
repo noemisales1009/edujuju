@@ -1184,6 +1184,41 @@ ul { list-style: none; }
 .ach-prog-fill.started{ background: var(--primary); }
 .ach-prog-fill.locked { background: var(--outline-var); }
 
+/* Conquistas Especiais */
+.ach-card.special {
+  border-color: #a855f7;
+  background: linear-gradient(160deg, #faf5ff 0%, var(--card-bg) 60%);
+  position: relative;
+}
+.ach-card.special::before {
+  content: 'ESPECIAL';
+  position: absolute; top: 0.45rem; right: 0.5rem;
+  font-size: 0.55rem; font-weight: 800; letter-spacing: 0.08em;
+  color: #a855f7; opacity: 0.75;
+}
+.ach-card.special.unlocked { border-color: #a855f7; }
+.ach-card.special.unlocked::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(135deg, #f3e8ff44, transparent 60%);
+  pointer-events: none;
+}
+.ach-badge.special-unlocked {
+  background: radial-gradient(circle at 40% 35%, #e9d5ff, #a855f7);
+  box-shadow: 0 0 0 4px #f3e8ff, 0 0 16px #a855f766;
+}
+.ach-badge.special-locked {
+  background: var(--surface-high);
+  filter: grayscale(1); opacity: 0.5;
+}
+@keyframes specialGlow {
+  0%, 100% { box-shadow: 0 0 0 4px #f3e8ff, 0 0 16px #a855f766; }
+  50%       { box-shadow: 0 0 0 6px #f3e8ff, 0 0 28px #a855f7aa; }
+}
+.ach-badge.special-unlocked { animation: specialGlow 2.6s ease-in-out infinite; }
+.ach-nota.special { background: #f3e8ff; color: #6b21a8; }
+.ach-prog-fill.special { background: #a855f7; }
+
 /* Settings */
 .settings-card { padding: 0; overflow: hidden; }
 .settings-header {
