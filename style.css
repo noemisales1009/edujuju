@@ -251,10 +251,14 @@ ul { list-style: none; }
 
 /* Botão de colapso */
 .sidebar-collapse-btn {
+  display: none;
   margin-left: auto;
   flex-shrink: 0;
   color: var(--on-surface-var);
   transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+}
+@media (min-width: 768px) {
+  .sidebar-collapse-btn { display: flex; }
 }
 .sidebar-header {
   display: flex;
