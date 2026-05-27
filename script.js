@@ -364,18 +364,22 @@ async function updateGradeCard() {
   const label = pct >= 80 ? 'Excelente'
               : pct >= 60 ? 'Bom'
               : pct >= 30 ? 'Em Progresso'
-              : pct > 0   ? 'Iniciando'
+              : pct > 0   ? 'Em Andamento'
               : 'Aguardando'
 
   const dashoffset = Math.round(264 * (1 - pct / 100))
+  const arcColor   = pct >= 60 ? 'var(--secondary)'
+                   : pct >= 30 ? '#f59e0b'
+                   : pct >  0  ? 'var(--error)'
+                   : 'var(--surface-high)'
 
   const gradeValue      = document.getElementById('gradeValue')
   const gradeStatusText = document.getElementById('gradeStatusText')
   const gradeArc        = document.getElementById('gradeArc')
 
-  if (gradeValue)      gradeValue.textContent = pct + '%'
+  if (gradeValue)      { gradeValue.textContent = pct + '%'; gradeValue.style.color = arcColor }
   if (gradeStatusText) gradeStatusText.textContent = label
-  if (gradeArc)        gradeArc.setAttribute('stroke-dashoffset', dashoffset)
+  if (gradeArc)        { gradeArc.setAttribute('stroke-dashoffset', dashoffset); gradeArc.style.stroke = arcColor }
 }
 
 async function saveQuizResult(questionId, isCorrect, chosenIndex) {
