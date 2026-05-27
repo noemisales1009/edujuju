@@ -2048,7 +2048,17 @@ async function loadReports() {
   `
 }
 
-document.getElementById('btnGerarPDF')?.addEventListener('click', () => window.print())
+document.getElementById('btnGerarPDF')?.addEventListener('click', async () => {
+  const btn = document.getElementById('btnGerarPDF')
+  btn.textContent = 'Carregando...'
+  btn.disabled = true
+  await loadReports()
+  setTimeout(() => {
+    window.print()
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.1rem">picture_as_pdf</span> Gerar PDF'
+    btn.disabled = false
+  }, 300)
+})
 
 // ============================================
 // HELPERS
