@@ -33,7 +33,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none'
   document.getElementById('appShell').style.display = ''
-  setTimeout(() => { loadHome?.(); loadCatalogo?.() }, 0)
+  setTimeout(() => { loadHome?.() }, 0)
 }
 
 function showLoginScreen() {
@@ -196,7 +196,9 @@ function applyProfileToUI(profile, email) {
 
   const isAdmin = profile.access_level === 'adm'
   document.querySelectorAll('[data-page="admin"]').forEach(el => {
-    el.style.display = isAdmin ? '' : 'none'
+    if (!isAdmin) { el.style.display = 'none'; return }
+    const tag = el.tagName.toLowerCase()
+    el.style.display = (tag === 'a' || tag === 'button') ? 'flex' : ''
   })
 }
 
@@ -1545,8 +1547,8 @@ async function loadCatalogo() {
   grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando vídeos...</p></div>'
 
   const [{ data: videos, error }, { data: artigos }] = await Promise.all([
-    supabase.from('videos').select('*').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('artigos').select('*').eq('visivel', true).order('ordem', { ascending: true })
+    supabase.from('videos').select('id, title, topics, youtube_url, description, ordem').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('artigos').select('id, titulo, descricao, imagem_url, ordem').eq('visivel', true).order('ordem', { ascending: true })
   ])
 
   const allItems = [
@@ -3073,16 +3075,13 @@ function fireConfetti(big = false) {
 }
 
 async function checkTrilhaConcluidaEConfetti(videoId) {
-  if (!currentUser) return
-  const { data: videos } = await supabase
-    .from('videos').select('id, topics').eq('visivel', true)
-  if (!videos?.length) return
+  if (!currentUser || !salaVideos.length) return
 
-  const thisVideo = videos.find(v => v.id === videoId)
+  const thisVideo = salaVideos.find(v => v.id === videoId)
   if (!thisVideo) return
   const trilhaKey = thisVideo.topics || thisVideo.title
 
-  const trilhaVids = videos.filter(v => (v.topics || v.title) === trilhaKey)
+  const trilhaVids = salaVideos.filter(v => (v.topics || v.title) === trilhaKey)
   const allDone    = trilhaVids.every(v => getVideoProgress(v.id) === 'completed')
 
   fireConfetti(allDone)
