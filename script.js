@@ -344,29 +344,45 @@ async function loadSalaDeAula() {
   const video = salaVideos[idx >= 0 ? idx : 0]
   currentVideoId = video.id
   await renderSalaVideo(video, todasRespostas || [])
-  updateGradeCard(todasRespostas || [])
+  updateGradeCard()
 }
 
-async function updateGradeCard(cachedRespostas = null) {
+async function updateGradeCard() {
   if (!currentUser || !salaVideos.length) return
 
-  let pct = 0
+  // Descobre a trilha do vídeo atual
+  const currentVideo = salaVideos.find(v => v.id === currentVideoId) || salaVideos[0]
+  const trilhaNome   = currentVideo.topics?.trim() || currentVideo.title
+  const trilhaIds    = salaVideos
+    .filter(v => (v.topics?.trim() || v.title) === trilhaNome)
+    .map(v => v.id)
 
-  let respostas = cachedRespostas
-  let error = null
-  if (respostas === null) {
-    const result = await supabase.from('respostas').select('is_correct').eq('user_id', currentUser.id)
-    respostas = result.data
-    error = result.error
+  // Atualiza título do card
+  const titleEl = document.getElementById('gradeCardTitle')
+  if (titleEl) titleEl.textContent = trilhaNome || 'Desempenho na Trilha'
+
+  // Busca notas da view para os vídeos desta trilha
+  const { data: notasData } = await supabase
+    .from('v_desempenho_usuario_trilha')
+    .select('nota_pct')
+    .eq('user_id', currentUser.id)
+    .in('video_id', trilhaIds)
+
+  let pct = 0
+  let hasData = false
+
+  if (notasData?.length) {
+    const notas = notasData.map(r => Number(r.nota_pct)).filter(n => !isNaN(n))
+    if (notas.length) {
+      pct = Math.round(notas.reduce((s, n) => s + n, 0) / notas.length)
+      hasData = true
+    }
   }
 
-  if (!error && respostas?.length > 0) {
-    const correct = respostas.filter(r => r.is_correct).length
-    pct = Math.round(correct / respostas.length * 100)
-  } else {
-    // Fallback: progresso local (videos concluídos / total)
-    const completed = salaVideos.filter(v => getVideoProgress(v.id) === 'completed').length
-    pct = Math.round(completed / salaVideos.length * 100)
+  if (!hasData) {
+    // Fallback: progresso local (aulas concluídas desta trilha)
+    const completed = trilhaIds.filter(id => getVideoProgress(id) === 'completed').length
+    pct = Math.round(completed / trilhaIds.length * 100)
   }
 
   const label = pct >= 80 ? 'Excelente'
@@ -838,6 +854,103 @@ window.showPage = function(pageId) {
   if (pageId === 'sala')    loadSalaDeAula()
   if (pageId === 'catalogo')   loadCatalogo()
   if (pageId === 'documentos') loadDocumentos()
+  if (pageId === 'perfil')     loadPerfilConquistas()
+}
+
+// ============================================
+// PERFIL — Conquistas por trilha
+// ============================================
+const TRILHA_EMOJIS = ['🏆','🎯','🚀','💎','⚡','🌟','🎖️','🔥','🎓','💡']
+
+async function loadPerfilConquistas() {
+  const grid = document.getElementById('achievementsGrid')
+  if (!grid || !currentUser) return
+
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:1rem"><span class="material-symbols-outlined" style="animation:spin 1s linear infinite;color:var(--primary)">progress_activity</span></div>'
+
+  const [{ data: videos }, { data: notasRaw }] = await Promise.all([
+    supabase.from('videos').select('id, title, topics').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('v_desempenho_usuario_trilha').select('video_id, nota_pct').eq('user_id', currentUser.id)
+  ])
+
+  if (!videos?.length) {
+    grid.innerHTML = '<p style="color:var(--on-surface-var);font-size:0.875rem;grid-column:1/-1">Nenhuma trilha disponível.</p>'
+    return
+  }
+
+  // Mapa de nota por video_id
+  const notaMap = {}
+  for (const r of (notasRaw || [])) notaMap[r.video_id] = Number(r.nota_pct)
+
+  // Agrupa por topics
+  const trilhaMap = {}
+  for (const v of videos) {
+    const key = v.topics?.trim() || v.title
+    if (!trilhaMap[key]) trilhaMap[key] = []
+    trilhaMap[key].push(v.id)
+  }
+
+  const trilhas = Object.entries(trilhaMap)
+  let desbloqueadas = 0
+
+  const cards = trilhas.map(([nome, ids], i) => {
+    const total     = ids.length
+    const concluidos = ids.filter(id => getVideoProgress(id) === 'completed').length
+    const progPct   = Math.round(concluidos / total * 100)
+
+    // Média de nota das aulas com resposta
+    const notas = ids.map(id => notaMap[id]).filter(n => n !== undefined)
+    const avgNota = notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null
+
+    const allDone = concluidos === total
+    if (allDone) desbloqueadas++
+
+    // Nível da medalha baseado na nota média
+    let level = 'locked'
+    if (allDone) {
+      if      (avgNota === null || avgNota >= 90) level = 'gold'
+      else if (avgNota >= 70)                     level = 'silver'
+      else if (avgNota >= 50)                     level = 'bronze'
+      else                                         level = 'bronze'
+    } else if (concluidos > 0) {
+      level = 'started'
+    }
+
+    const emoji = TRILHA_EMOJIS[i % TRILHA_EMOJIS.length]
+    const badgeIcon = level === 'locked' ? '🔒' : emoji
+
+    const notaLabel = avgNota !== null
+      ? `${avgNota}%`
+      : allDone ? '—' : `${concluidos}/${total} aulas`
+
+    const levelLabel = level === 'gold'   ? '🥇 Ouro'
+                     : level === 'silver' ? '🥈 Prata'
+                     : level === 'bronze' ? '🥉 Bronze'
+                     : level === 'started'? 'Em progresso'
+                     : 'Bloqueado'
+
+    return `
+      <div class="ach-card ${level}">
+        <div class="ach-badge ${level}">${badgeIcon}</div>
+        <div class="ach-name">${escHtml(nome)}</div>
+        <span class="ach-nota ${avgNota !== null ? level : 'none'}">${notaLabel}</span>
+        <div class="ach-prog-wrap">
+          <div class="ach-prog-label">
+            <span>${levelLabel}</span>
+            <span>${concluidos}/${total}</span>
+          </div>
+          <div class="ach-prog-bar">
+            <div class="ach-prog-fill ${level}" style="width:${progPct}%"></div>
+          </div>
+        </div>
+      </div>`
+  })
+
+  // Atualiza contador no header
+  const counter = document.getElementById('achievementsCounter')
+  if (counter) counter.textContent = `${desbloqueadas} de ${trilhas.length}`
+
+  grid.innerHTML = cards.join('')
 }
 
 // ============================================

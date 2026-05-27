@@ -450,7 +450,7 @@
 
             <!-- Desempenho -->
             <div class="surface-card grade-card">
-              <h3 class="sidebar-label">Desempenho na Trilha</h3>
+              <h3 class="sidebar-label" id="gradeCardTitle">Desempenho na Trilha</h3>
               <div class="grade-chart-wrap">
                 <svg viewBox="0 0 100 100" width="160" height="160">
                   <circle class="grade-track" cx="50" cy="50" r="42" fill="transparent" stroke-width="8"/>
@@ -904,27 +904,10 @@
             <div>
               <div class="achievements-header">
                 <h3 class="section-heading" style="margin-bottom:0">Conquistas</h3>
-                <button class="link-btn">Ver todas</button>
+                <span class="achievements-counter" id="achievementsCounter">—</span>
               </div>
-              <div class="achievements-grid">
-                <div class="achievement-item surface-card">
-                  <div class="achievement-icon">
-                    <span class="material-symbols-outlined icon-filled" style="color:var(--primary);font-size:2rem">local_fire_department</span>
-                  </div>
-                  <div>
-                    <h4 class="achievement-title">Sequência de 30 Dias</h4>
-                    <p class="achievement-desc">Estudou todos os dias este mês.</p>
-                  </div>
-                </div>
-                <div class="achievement-item surface-card">
-                  <div class="achievement-icon">
-                    <span class="material-symbols-outlined icon-filled" style="color:var(--secondary);font-size:2rem">lightbulb</span>
-                  </div>
-                  <div>
-                    <h4 class="achievement-title">Mestre do Figma</h4>
-                    <p class="achievement-desc">Concluiu a trilha avançada.</p>
-                  </div>
-                </div>
+              <div class="achievements-grid" id="achievementsGrid">
+                <div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando...</p></div>
               </div>
             </div>
 
