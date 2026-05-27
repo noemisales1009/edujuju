@@ -439,6 +439,20 @@ async function renderSalaVideo(video) {
   } else if (nextCard) {
     nextCard.style.display = 'none'
   }
+
+  updateNextBtnState()
+}
+
+function updateNextBtnState() {
+  const nextBtn  = document.getElementById('nextBtn')
+  if (!nextBtn) return
+  const quizCard = document.getElementById('salaQuizCard')
+  const hasQuiz  = quizCard && quizCard.style.display !== 'none'
+  const blocked  = hasQuiz && !quizResolved
+  nextBtn.disabled     = blocked
+  nextBtn.style.opacity = blocked ? '0.45' : ''
+  nextBtn.style.cursor  = blocked ? 'not-allowed' : ''
+  nextBtn.title         = blocked ? 'Responda o quiz para avançar' : ''
 }
 
 async function renderSalaQuiz(videoId) {
@@ -482,6 +496,7 @@ async function renderSalaQuiz(videoId) {
       // Já respondeu — bloqueia e mostra o resultado anterior
       quizResolved = true
       confirmBtn.textContent = 'Próxima Aula →'
+      updateNextBtnState()
 
       document.querySelectorAll('.quiz-opt').forEach((opt, i) => {
         opt.classList.add('disabled')
@@ -511,10 +526,15 @@ function renderModuleList(currentId) {
   const list = document.getElementById('salaModuleList')
   if (!list) return
   list.innerHTML = salaVideos.map((v, i) => {
-    const isCurrent = v.id === currentId
-    return `<li class="module-item ${isCurrent ? 'item-current' : 'item-locked'}" style="cursor:pointer"
-      onclick="window.playSalaVideo(${v.id})">
-      <span class="material-symbols-outlined">${isCurrent ? 'play_circle' : 'lock'}</span>
+    const isCurrent   = v.id === currentId
+    const isDone      = getVideoProgress(v.id) === 'completed'
+    const canNavigate = isCurrent || isDone
+    const icon = isCurrent ? 'play_circle' : isDone ? 'check_circle' : 'lock'
+    const cls  = isCurrent ? 'item-current' : isDone ? 'item-done' : 'item-locked'
+    return `<li class="module-item ${cls}"
+      style="cursor:${canNavigate ? 'pointer' : 'default'};${isDone && !isCurrent ? 'opacity:0.8' : ''}"
+      ${canNavigate ? `onclick="window.playSalaVideo(${v.id})"` : ''}>
+      <span class="material-symbols-outlined" style="${isDone && !isCurrent ? 'color:var(--primary)' : ''}">${icon}</span>
       <span>${i + 1}. ${escHtml(v.title)}</span>
       ${isCurrent ? '<span class="pulse-dot"></span>' : ''}
     </li>`
@@ -578,6 +598,7 @@ async function handleQuiz() {
   const idx = salaVideos.findIndex(v => v.id === currentVideoId)
   confirmBtn.textContent = idx < salaVideos.length - 1 ? 'Próxima Aula →' : 'Concluir Trilha →'
   quizResolved = true
+  updateNextBtnState()
 }
 
 // ============================================
