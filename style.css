@@ -1652,7 +1652,11 @@ ul { list-style: none; }
   background: var(--surface-dim);
   display: flex; align-items: center; justify-content: center;
 }
-@media (max-width: 539px) { .ali-thumb { width: 100%; height: 8rem; } }
+@media (max-width: 539px) {
+  .ali-thumb { width: 100%; height: 8rem; }
+  .ali-thumb-quiz,
+  .ali-thumb-video:not(:has(img)) { height: 3.5rem; }
+}
 .ali-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .ali-play-overlay {
