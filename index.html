@@ -21,108 +21,31 @@
   <script src="https://unpkg.com/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
   <style>
     @media print {
-      /* Esconde tudo exceto o relatório */
-      body > * { display: none !important; }
-      #appShell { display: block !important; }
-      #appShell > * { display: none !important; }
-      #page-admin { display: block !important; }
-      #page-admin > *:not(.admin-content) { display: none !important; }
-      .admin-content > *:not(.admin-tab-pane) { display: none !important; }
-      .admin-tabs { display: none !important; }
-      .admin-tab-pane { display: none !important; }
-      #tab-relatorios { display: block !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body * { visibility: hidden !important; }
+      #tab-relatorios, #tab-relatorios * { visibility: visible !important; }
       #btnGerarPDF { display: none !important; }
+      .admin-tab-pane { display: block !important; }
 
-      /* Reset para fundo branco */
-      * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        color-adjust: exact !important;
-      }
-      body, #page-admin, #tab-relatorios {
+      #tab-relatorios {
+        position: fixed; inset: 0;
+        padding: 1.5rem 2rem;
         background: #fff !important;
         color: #111 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      #tab-relatorios {
-        padding: 0 !important;
+        overflow: visible;
       }
 
-      /* Cabeçalho do PDF */
-      #tab-relatorios::before {
-        content: "EduJuju — Relatório de Desempenho";
-        display: block;
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #4f46e5;
-        padding: 1.5rem 2rem 0.25rem;
-        border-bottom: 2px solid #4f46e5;
-        margin-bottom: 1.5rem;
-      }
-
-      /* Cards de resumo */
-      .reports-grid {
-        display: grid !important;
-        grid-template-columns: repeat(4, 1fr) !important;
-        gap: 0.75rem !important;
-        padding: 0 2rem !important;
-        margin-bottom: 1.5rem !important;
-      }
-      .report-card {
-        background: #f5f3ff !important;
-        border: 1px solid #c4b5fd !important;
-        border-radius: 8px !important;
-        padding: 1rem !important;
-        box-shadow: none !important;
-        transform: none !important;
-      }
-      .report-value { color: #4f46e5 !important; font-size: 1.75rem !important; }
+      /* Cards resumo */
+      .reports-grid { grid-template-columns: repeat(4,1fr) !important; gap: 0.5rem !important; margin-bottom: 1rem !important; }
+      .report-card { background: #f5f3ff !important; border: 1px solid #c4b5fd !important; box-shadow: none !important; transform: none !important; }
+      .report-value { color: #4f46e5 !important; }
       .report-label { color: #555 !important; }
-      .report-card-icon { display: none !important; }
 
       /* Tabelas */
-      [style*="grid-column:1/-1"] {
-        margin: 0 2rem 1.5rem !important;
-        border: 1px solid #ddd !important;
-        border-radius: 8px !important;
-        overflow: hidden !important;
-        page-break-inside: avoid !important;
-      }
       table { width: 100% !important; border-collapse: collapse !important; }
-      th {
-        background: #f5f3ff !important;
-        color: #4f46e5 !important;
-        font-size: 0.7rem !important;
-        padding: 0.5rem 0.75rem !important;
-        border-bottom: 2px solid #c4b5fd !important;
-        text-align: left !important;
-      }
-      td {
-        padding: 0.5rem 0.75rem !important;
-        border-bottom: 1px solid #eee !important;
-        color: #222 !important;
-        font-size: 0.8rem !important;
-        background: #fff !important;
-      }
-      tr:last-child td { border-bottom: none !important; }
-
-      /* Cabeçalho das tabelas */
-      [style*="display:flex;align-items:center;gap:0.75rem;padding:1rem"] {
-        background: #f5f3ff !important;
-        color: #4f46e5 !important;
-        padding: 0.6rem 1rem !important;
-        border-bottom: 1px solid #ddd !important;
-      }
-
-      /* Barras de progresso — mantém cor */
-      [style*="background:#43a047"] { background: #43a047 !important; }
-      [style*="background:#fbc02d"] { background: #fbc02d !important; }
-      [style*="background:#e53935"] { background: #e53935 !important; }
-
-      /* Oculta hover e animações */
+      th { background: #f5f3ff !important; color: #4f46e5 !important; border-bottom: 2px solid #c4b5fd !important; }
+      td { color: #222 !important; background: #fff !important; border-bottom: 1px solid #eee !important; }
       tr { page-break-inside: avoid; }
-      .material-symbols-outlined { font-family: 'Material Symbols Outlined' !important; }
     }
   </style>
 </head>
