@@ -12,6 +12,10 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user
     const meta = currentUser.user_metadata || {}
+    if (event === 'SIGNED_IN') {
+      supabase.from('registro_acesso').insert({ user_id: currentUser.id })
+        .then(({ error }) => { if (error) console.warn('[Auth] registro_acesso:', error) })
+    }
     supabase.from('users').upsert({
       id: currentUser.id,
       email: currentUser.email,
@@ -3656,7 +3660,7 @@ async function loadHome() {
 
   const [{ data: videos }, { data: artigos }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('artigos').select('id, titulo, descricao, imagem_url').eq('visivel', true).order('ordem', { ascending: true })
+    supabase.from('artigos').select('id, titulo, descricao, imagem_url, topics').eq('visivel', true).order('ordem', { ascending: true })
   ])
 
   const allVideos  = videos  || []
@@ -3747,14 +3751,22 @@ async function loadHome() {
   if (trilhasGrid) {
     const trilhasMap = {}
     for (const v of allVideos) {
-      const key = v.topics || v.title
+      const key = v.topics?.trim() || v.title
       if (!trilhasMap[key]) trilhasMap[key] = []
-      trilhasMap[key].push(v)
+      trilhasMap[key].push({ ...v, _tipo: 'video' })
+    }
+    for (const a of allArtigos) {
+      if (!a.topics?.trim()) continue
+      const key = a.topics.trim()
+      if (!trilhasMap[key]) trilhasMap[key] = []
+      trilhasMap[key].push({ ...a, _tipo: 'artigo' })
     }
     trilhasGrid.innerHTML = ''
-    for (const [trilha, vids] of Object.entries(trilhasMap)) {
-      const done  = vids.filter(v => getVideoProgress(v.id) === 'completed').length
-      const total = vids.length
+    for (const [trilha, itens] of Object.entries(trilhasMap)) {
+      const done  = itens.filter(i =>
+        i._tipo === 'artigo' ? getArtigoProgress(i.id) === 'completed' : getVideoProgress(i.id) === 'completed'
+      ).length
+      const total = itens.length
       const pctT  = total ? Math.round((done / total) * 100) : 0
       const icon  = pctT === 100 ? 'emoji_events' : pctT > 0 ? 'rocket_launch' : 'play_lesson'
       const card  = document.createElement('div')
@@ -3769,7 +3781,7 @@ async function loadHome() {
           <div class="progress-bar" style="margin-top:0.375rem">
             <div class="progress-fill${pctT === 100 ? ' done' : ''}" style="width:${pctT}%"></div>
           </div>
-          <small style="color:var(--text-secondary)">${done}/${total} aula${total !== 1 ? 's' : ''}</small>
+          <small style="color:var(--text-secondary)">${done}/${total} item${total !== 1 ? 's' : ''}</small>
         </div>`
       card.addEventListener('click', () => window.showPage('catalogo'))
       trilhasGrid.appendChild(card)
@@ -3923,6 +3935,7 @@ body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;over
     <div class="ftr-mid">
       <div class="ftr-date">${hoje}</div>
       <div class="ftr-city">São Luís — Maranhão</div>
+      <div style="font-size:0.52rem;color:#c4b5fd;font-family:'Segoe UI',Arial,sans-serif;margin-top:4px;letter-spacing:0.08em">Cód. ${userId.slice(0,8).toUpperCase()}</div>
     </div>
     <div class="sig">
       <div class="sig-line"></div>
@@ -3952,6 +3965,164 @@ function toggleCertAccordion() {
   if (!isOpen) loadAdminCertificados()
 }
 window.toggleCertAccordion = toggleCertAccordion
+
+function toggleAcessoAccordion() {
+  const body = document.getElementById('acessoAccordionBody')
+  const icon = document.getElementById('acessoAccordionIcon')
+  const isOpen = body.style.display === 'flex'
+  body.style.display = isOpen ? 'none' : 'flex'
+  icon.textContent = isOpen ? 'expand_more' : 'expand_less'
+  if (!isOpen) loadAdminAcessos()
+}
+window.toggleAcessoAccordion = toggleAcessoAccordion
+
+async function loadAdminAcessos() {
+  const listEl = document.getElementById('adminAcessoList')
+  if (!listEl) return
+  listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
+
+  const [{ data: acessos }, { data: users }] = await Promise.all([
+    supabase.from('registro_acesso').select('user_id, entrou_em').order('entrou_em', { ascending: false }).limit(300),
+    supabase.from('users').select('id, name, email, sector')
+  ])
+
+  if (!acessos?.length) {
+    listEl.innerHTML = '<div class="list-empty"><p>Nenhum acesso registrado ainda.</p></div>'
+    return
+  }
+
+  const userMap = {}
+  for (const u of (users || [])) userMap[u.id] = u
+
+  const rows = acessos.map(a => {
+    const u = userMap[a.user_id] || {}
+    const nome = u.name || u.email?.split('@')[0] || '—'
+    const email = u.email || '—'
+    const setor = u.sector || '—'
+    const data = new Date(a.entrou_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return `<tr>
+      <td style="padding:0.5rem 0.75rem;font-weight:600;color:var(--on-surface)">${escHtml(nome)}</td>
+      <td style="padding:0.5rem 0.75rem;color:var(--text-secondary);font-size:0.82rem">${escHtml(email)}</td>
+      <td style="padding:0.5rem 0.75rem;color:var(--text-secondary);font-size:0.82rem">${escHtml(setor)}</td>
+      <td style="padding:0.5rem 0.75rem;color:var(--text-secondary);font-size:0.82rem;white-space:nowrap">${data}</td>
+    </tr>`
+  }).join('')
+
+  listEl.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:0.875rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--outline-var);text-align:left">
+            <th style="padding:0.5rem 0.75rem;color:var(--text-secondary);font-weight:600;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em">Nome</th>
+            <th style="padding:0.5rem 0.75rem;color:var(--text-secondary);font-weight:600;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em">Email</th>
+            <th style="padding:0.5rem 0.75rem;color:var(--text-secondary);font-weight:600;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em">Setor</th>
+            <th style="padding:0.5rem 0.75rem;color:var(--text-secondary);font-weight:600;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em">Entrou em</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+    <p style="text-align:right;font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">${acessos.length} registro${acessos.length !== 1 ? 's' : ''} (últimos 300)</p>`
+}
+window.loadAdminAcessos = loadAdminAcessos
+
+async function gerarPdfHistoricoLogin() {
+  const btn = document.getElementById('btnPdfLogin')
+  btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.1rem;animation:spin 1s linear infinite">progress_activity</span> Gerando...'
+  btn.disabled = true
+
+  try {
+    const [{ data: acessos }, { data: users }] = await Promise.all([
+      supabase.from('registro_acesso').select('user_id, entrou_em').order('entrou_em', { ascending: false }),
+      supabase.from('users').select('id, name, email, sector').order('name', { ascending: true })
+    ])
+
+    // Acessos agrupados por user_id
+    const acessosPorUser = {}
+    for (const a of (acessos || [])) {
+      if (!acessosPorUser[a.user_id]) acessosPorUser[a.user_id] = []
+      acessosPorUser[a.user_id].push(a.entrou_em)
+    }
+
+    const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+    const totalRegistros = (acessos || []).length
+
+    // Uma linha por usuário: nome, email, setor, total de acessos, último acesso
+    const rows = (users || []).map((u, i) => {
+      const logins = acessosPorUser[u.id] || []
+      const totalAcessos = logins.length
+      const ultimoAcesso = totalAcessos
+        ? new Date(logins[0]).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '—'
+      const bg = i % 2 === 0 ? '#fff' : '#f8f7ff'
+      const corTotal = totalAcessos > 0 ? '#1a1a2e' : '#9ca3af'
+      return `<tr style="background:${bg}">
+        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe">${i + 1}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;font-weight:600">${escHtml(u.name || '—')}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:#555">${escHtml(u.email || '—')}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:#555">${escHtml(u.sector || '—')}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:${corTotal};text-align:center;font-weight:600">${totalAcessos}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:#555;white-space:nowrap">${ultimoAcesso}</td>
+      </tr>`
+    }).join('')
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Histórico de Login — EduJuju</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box }
+  @page { size: A4; margin: 20mm 15mm }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #1a1a2e }
+  .header { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px; border-bottom:3px solid #4f46e5; margin-bottom:16px }
+  .header-title { font-size:18px; font-weight:700; color:#4f46e5 }
+  .header-sub { font-size:11px; color:#6b7280; margin-top:3px }
+  .header-date { font-size:11px; color:#6b7280; text-align:right }
+  table { width:100%; border-collapse:collapse }
+  thead { background:#4f46e5; color:#fff }
+  th { padding:8px 12px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.05em }
+  .footer { margin-top:16px; text-align:center; font-size:9px; color:#9ca3af; border-top:1px solid #e5e7eb; padding-top:8px }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="header-title">Histórico de Acesso — EduJuju</div>
+      <div class="header-sub">Hospital Infantil Dr. Juvêncio Mattos</div>
+    </div>
+    <div class="header-date">Gerado em ${hoje}<br>${(users || []).length} usuários · ${totalRegistros} acessos registrados</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Nome</th>
+        <th>Email</th>
+        <th>Setor</th>
+        <th style="text-align:center">Acessos</th>
+        <th>Último acesso</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">Gerado automaticamente pelo sistema EduJuju — ${hoje}</div>
+<script>window.onload = () => { setTimeout(() => window.print(), 400) }<\/script>
+</body>
+</html>`
+
+    const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
+    if (!win) { alert('Permita pop-ups para gerar o PDF.'); return }
+    win.document.write(html)
+    win.document.close()
+  } finally {
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.1rem">picture_as_pdf</span> Gerar PDF — Histórico de Login'
+    btn.disabled = false
+  }
+}
+window.gerarPdfHistoricoLogin = gerarPdfHistoricoLogin
 
 async function loadAdminCertificados() {
   const listEl = document.getElementById('adminCertList')

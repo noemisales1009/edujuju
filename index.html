@@ -736,6 +736,23 @@
               </div>
             </div>
           </div>
+
+          <!-- Controle de Acesso (accordion) -->
+          <div style="margin-bottom:1.5rem;border:1px solid var(--outline-var);border-radius:var(--r-md);overflow:hidden">
+            <button onclick="toggleAcessoAccordion()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:0.875rem 1rem;background:var(--surface-mid);border:none;cursor:pointer;font-weight:600;font-size:0.9rem;color:var(--on-surface)">
+              <span style="display:flex;align-items:center;gap:0.5rem">
+                <span class="material-symbols-outlined icon-filled" style="color:#4f46e5;font-size:1.2rem">manage_accounts</span>
+                Controle de Acesso
+              </span>
+              <span class="material-symbols-outlined" id="acessoAccordionIcon" style="font-size:1.2rem;color:var(--text-secondary)">expand_more</span>
+            </button>
+            <div id="acessoAccordionBody" style="display:none;padding:1rem;flex-direction:column;gap:0.5rem">
+              <div id="adminAcessoList">
+                <div class="list-empty"><p>Carregando registros...</p></div>
+              </div>
+            </div>
+          </div>
+
           <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
             <button class="btn-primary" id="btnGerarPDF" style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.875rem;padding:0.5rem 1rem">
               <span class="material-symbols-outlined" style="font-size:1.1rem">picture_as_pdf</span>
@@ -747,6 +764,12 @@
               <span class="material-symbols-outlined">bar_chart</span>
               <p>Carregando dados...</p>
             </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:1.5rem">
+            <button onclick="gerarPdfHistoricoLogin()" id="btnPdfLogin" class="btn-secondary" style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.875rem;padding:0.5rem 1rem">
+              <span class="material-symbols-outlined" style="font-size:1.1rem">picture_as_pdf</span>
+              Gerar PDF — Histórico de Login
+            </button>
           </div>
         </div>
       </section>
@@ -1206,6 +1229,8 @@
       <span>Perfil</span>
     </a>
   </nav>
+
+  <div id="watermark-overlay"></div>
 
   </div><!-- /appShell -->
 
