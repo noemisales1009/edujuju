@@ -653,7 +653,7 @@ async function renderSalaQuiz(videoId, cachedRespostas = null) {
     if (watchedBtn) {
       watchedBtn.onclick = () => {
         setVideoWatched(videoId)
-        renderSalaQuiz(videoId)
+        renderSalaQuiz(videoId, respostasResult?.data || [])
       }
     }
     updateNextBtnState()
@@ -1977,6 +1977,7 @@ document.getElementById('artigoImagemFile').addEventListener('change', e => {
 })
 
 let _artigoEditor = null
+let _videosSortable = null
 
 function renderArtigoQList() {
   const listEl = document.getElementById('artigoQList')
@@ -2209,7 +2210,8 @@ async function loadVideos() {
   populateVideoSelect(videos)
 
   if (window.Sortable) {
-    Sortable.create(listEl, {
+    if (_videosSortable) { _videosSortable.destroy(); _videosSortable = null }
+    _videosSortable = Sortable.create(listEl, {
       handle: '.drag-handle',
       animation: 150,
       onEnd: async ({ oldIndex, newIndex }) => {
