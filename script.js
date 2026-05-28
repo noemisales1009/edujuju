@@ -560,6 +560,27 @@ function renderConclusaoCard(videoId) {
   quizCard?.insertAdjacentElement('afterend', el)
 }
 
+function renderConcluirSemQuizBtn(videoId) {
+  document.getElementById('conclusaoAulaCard')?.remove()
+  const el = document.createElement('div')
+  el.id = 'conclusaoAulaCard'
+  el.className = 'surface-card'
+  el.style.cssText = 'margin-top:1rem'
+  el.innerHTML = `
+    <button class="btn-primary" style="width:100%;padding:0.875rem;gap:0.5rem" id="btnConcluirSemQuiz">
+      <span class="material-symbols-outlined icon-filled">check_circle</span>
+      Marcar como Concluído
+    </button>`
+  const quizCard = document.getElementById('salaQuizCard')
+  quizCard?.insertAdjacentElement('afterend', el)
+  document.getElementById('btnConcluirSemQuiz').addEventListener('click', () => {
+    setVideoProgress(videoId, 'completed')
+    setTimeout(() => checkTrilhaConcluidaEConfetti(videoId), 400)
+    renderConclusaoCard(videoId)
+    updateNextBtnState()
+  })
+}
+
 function updateNextBtnState() {
   const nextBtn  = document.getElementById('nextBtn')
   if (!nextBtn) return
@@ -597,6 +618,11 @@ async function renderSalaQuiz(videoId, cachedRespostas = null) {
     if (ww) ww.style.display = 'none'
     const video = salaVideos.find(v => v.id === videoId)
     renderTextoAula(video?.texto_aula || null)
+    if (getVideoProgress(videoId) === 'completed') {
+      renderConclusaoCard(videoId)
+    } else {
+      renderConcluirSemQuizBtn(videoId)
+    }
     return
   }
 
