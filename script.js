@@ -466,6 +466,8 @@ async function renderSalaVideo(video, cachedRespostas = null) {
     renderTextoAula(null)
     const quizCard = document.getElementById('salaQuizCard')
     if (quizCard) quizCard.style.display = 'none'
+    const ww = document.getElementById('videoWatchedWrap')
+    if (ww) ww.style.display = 'none'
     document.getElementById('conclusaoAulaCard')?.remove()
     renderConclusaoCard(video.id)
     quizResolved = true
