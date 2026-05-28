@@ -593,6 +593,8 @@ async function renderSalaQuiz(videoId, cachedRespostas = null) {
 
   if (!questions?.length) {
     quizCard.style.display = 'none'
+    const ww = document.getElementById('videoWatchedWrap')
+    if (ww) ww.style.display = 'none'
     const video = salaVideos.find(v => v.id === videoId)
     renderTextoAula(video?.texto_aula || null)
     return
@@ -600,6 +602,27 @@ async function renderSalaQuiz(videoId, cachedRespostas = null) {
 
   renderTextoAula(null)
   _quizQuestions = questions
+
+  const jaAssistiu = getVideoWatched(videoId) || getVideoProgress(videoId) === 'completed'
+  const watchedWrap = document.getElementById('videoWatchedWrap')
+  const watchedBtn  = document.getElementById('videoWatchedBtn')
+
+  if (!jaAssistiu) {
+    quizCard.style.display = 'none'
+    if (watchedWrap) watchedWrap.style.display = ''
+    if (watchedBtn) {
+      watchedBtn.onclick = () => {
+        setVideoWatched(videoId)
+        watchedWrap.style.display = 'none'
+        quizCard.style.display = ''
+        updateNextBtnState()
+      }
+    }
+    updateNextBtnState()
+    return
+  }
+
+  if (watchedWrap) watchedWrap.style.display = 'none'
   quizCard.style.display = ''
 
   if (currentUser) {
@@ -1765,6 +1788,16 @@ function getVideoProgress(videoId) {
 function setVideoProgress(videoId, status) {
   if (!currentUser) return
   localStorage.setItem(`eduflow-prog-${currentUser.id}-${videoId}`, status)
+}
+
+function getVideoWatched(videoId) {
+  if (!currentUser) return false
+  return localStorage.getItem(`eduflow-watched-${currentUser.id}-${videoId}`) === '1'
+}
+
+function setVideoWatched(videoId) {
+  if (!currentUser) return
+  localStorage.setItem(`eduflow-watched-${currentUser.id}-${videoId}`, '1')
 }
 
 function openVideoSala(video) {
