@@ -1307,7 +1307,7 @@ async function openFlipbook(fileUrl, title) {
         const viewport = page.getViewport({ scale: SCALE })
         canvas.width = viewport.width
         canvas.height = viewport.height
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+        await page.render({ canvasContext: canvas.getContext('2d', { willReadFrequently: true }), viewport }).promise
         pageInfo.textContent = `Página ${num} de ${numPages}`
         isRendering = false
       }
@@ -1361,7 +1361,7 @@ async function openFlipbook(fileUrl, title) {
         const canvas = document.createElement('canvas')
         canvas.width = W
         canvas.height = H
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+        await page.render({ canvasContext: canvas.getContext('2d', { willReadFrequently: true }), viewport }).promise
         const wrap = document.createElement('div')
         wrap.className = 'page'
         wrap.style.cssText = `width:${W}px;height:${H}px;overflow:hidden;background:#fff`
@@ -1536,7 +1536,7 @@ document.getElementById('formDoc').addEventListener('submit', async e => {
     const canvas = document.createElement('canvas')
     canvas.width  = viewport.width
     canvas.height = viewport.height
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+    await page.render({ canvasContext: canvas.getContext('2d', { willReadFrequently: true }), viewport }).promise
     const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85))
     const thumbName = `thumb_${fileName.replace(/\.pdf$/i, '')}.jpg`
     const { error: thumbErr } = await supabase.storage.from('documentos').upload(thumbName, blob, { contentType: 'image/jpeg' })
