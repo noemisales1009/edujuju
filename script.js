@@ -1775,7 +1775,7 @@ async function openArtigo(artigo) {
 
   // Carrega perguntas do artigo
   const { data: questoes } = await supabase.from('questoes_sala_de_aula')
-    .select('*').eq('artigo_id', artigo.id).order('ordem', { ascending: true })
+    .select('*').eq('artigo_id', artigo.id).order('created_at', { ascending: true })
 
   if (questoes?.length) {
     quizWrap.style.display = ''
@@ -2408,7 +2408,7 @@ async function openArtigoModal(artigo = null) {
     }
     // Carrega perguntas existentes
     const { data: qs } = await supabase.from('questoes_sala_de_aula')
-      .select('*').eq('artigo_id', artigo.id).order('ordem', { ascending: true })
+      .select('*').eq('artigo_id', artigo.id).order('created_at', { ascending: true })
     _artigoQuestoes = (qs || []).map(q => ({
       id: q.id,
       enunciado: q.question,
