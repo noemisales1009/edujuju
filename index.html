@@ -377,12 +377,8 @@
               <span class="material-symbols-outlined icon-filled" style="font-size:2.5rem;color:#f59e0b">workspace_premium</span>
               <div>
                 <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.25rem">Parabéns! Você concluiu todas as trilhas!</h3>
-                <p style="font-size:0.8rem;color:var(--on-surface-var)">Seu certificado de conclusão está pronto.</p>
+                <p style="font-size:0.8rem;color:var(--on-surface-var)">Solicite seu certificado à coordenação.</p>
               </div>
-              <button class="btn-primary" id="btnGerarCertificado" style="white-space:nowrap">
-                <span class="material-symbols-outlined" style="font-size:1rem">download</span>
-                Gerar Certificado
-              </button>
             </div>
           </div>
 
@@ -444,6 +440,26 @@
               </button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ======== PAGE: Avaliação ======== -->
+      <section class="page" id="page-avaliacao">
+        <div class="sala-subheader">
+          <button class="btn-back" onclick="showPage('catalogo')">
+            <span class="material-symbols-outlined">arrow_back</span>
+            <span class="back-label">Voltar para Trilhas</span>
+          </button>
+          <span id="avaliacaoPageTopics" style="font-size:0.875rem;color:var(--text-secondary)"></span>
+          <div style="width:2rem"></div>
+        </div>
+        <div style="max-width:760px;margin:0 auto;padding:1.5rem 1rem 4rem">
+          <div id="avaliacaoImagemWrap" style="display:none;margin-bottom:1.5rem;border-radius:12px;overflow:hidden;max-height:360px">
+            <img id="avaliacaoImagemEl" src="" alt="" style="width:100%;height:100%;object-fit:cover">
+          </div>
+          <h1 id="avaliacaoTituloEl" style="font-size:1.6rem;margin-bottom:0.5rem"></h1>
+          <p id="avaliacaoDescricaoEl" style="color:var(--text-secondary);margin-bottom:2rem"></p>
+          <div id="avaliacaoConteudo"></div>
         </div>
       </section>
 
@@ -608,6 +624,10 @@
             <span class="material-symbols-outlined">article</span>
             Artigos
           </button>
+          <button class="admin-tab" data-tab="avaliacoes">
+            <span class="material-symbols-outlined">assignment</span>
+            Avaliações
+          </button>
           <button class="admin-tab" data-tab="relatorios">
             <span class="material-symbols-outlined">bar_chart</span>
             Relatórios
@@ -687,8 +707,40 @@
           </div>
         </div>
 
+        <!-- Aba: Avaliações -->
+        <div class="admin-tab-pane" id="tab-avaliacoes">
+          <div class="tab-toolbar">
+            <span class="tab-count" id="avaliacoesCount">0 avaliações</span>
+            <button class="btn-primary" id="btnAddAvaliacao">
+              <span class="material-symbols-outlined">add</span>
+              Nova Avaliação
+            </button>
+          </div>
+          <div class="content-list" id="avaliacoesList">
+            <div class="list-empty">
+              <span class="material-symbols-outlined">assignment</span>
+              <p>Nenhuma avaliação cadastrada ainda.</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Aba: Relatórios -->
         <div class="admin-tab-pane" id="tab-relatorios">
+          <!-- Certificados (accordion) -->
+          <div style="margin-bottom:1.5rem;border:1px solid var(--outline-var);border-radius:var(--r-md);overflow:hidden">
+            <button id="btnToggleCert" onclick="toggleCertAccordion()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:0.875rem 1rem;background:var(--surface-mid);border:none;cursor:pointer;font-weight:600;font-size:0.9rem;color:var(--on-surface)">
+              <span style="display:flex;align-items:center;gap:0.5rem">
+                <span class="material-symbols-outlined icon-filled" style="color:#f59e0b;font-size:1.2rem">workspace_premium</span>
+                Gerar Certificados
+              </span>
+              <span class="material-symbols-outlined" id="certAccordionIcon" style="font-size:1.2rem;color:var(--text-secondary)">expand_more</span>
+            </button>
+            <div id="certAccordionBody" style="display:none;padding:1rem;display:none;flex-direction:column;gap:0.5rem">
+              <div id="adminCertList">
+                <div class="list-empty"><p>Carregando usuários...</p></div>
+              </div>
+            </div>
+          </div>
           <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
             <button class="btn-primary" id="btnGerarPDF" style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.875rem;padding:0.5rem 1rem">
               <span class="material-symbols-outlined" style="font-size:1.1rem">picture_as_pdf</span>
@@ -873,6 +925,57 @@
             <div class="modal-actions">
               <button type="button" class="btn-outline" id="cancelArtigo">Cancelar</button>
               <button type="submit" class="btn-primary" id="saveArtigoBtn">Salvar Artigo</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal: Avaliação -->
+      <div class="modal-overlay" id="modalAvaliacao">
+        <div class="modal-card modal-card-lg">
+          <div class="modal-header">
+            <h2 id="modalAvaliacaoTitle">Nova Avaliação</h2>
+            <button class="btn-icon" id="closeModalAvaliacao"><span class="material-symbols-outlined">close</span></button>
+          </div>
+          <form class="modal-form" id="formAvaliacao">
+            <div class="form-group">
+              <label>Título *</label>
+              <input type="text" id="avaliacaoTitulo" placeholder="Título da avaliação" required>
+            </div>
+            <div class="form-group">
+              <label>Descrição / Instruções</label>
+              <textarea id="avaliacaoDescricao" placeholder="Instruções ou contexto da avaliação" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Tópico / Trilha <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
+              <input type="text" id="avaliacaoTopics" placeholder="Ex: AULA 1 - IRAS">
+            </div>
+            <div class="form-group">
+              <label>Imagem de capa <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
+              <label class="img-upload-area" for="avaliacaoImagemFile">
+                <span class="material-symbols-outlined">add_photo_alternate</span>
+                <span id="avaliacaoImagemLabelText">Clique para escolher uma imagem</span>
+                <input type="file" id="avaliacaoImagemFile" accept="image/*" style="display:none">
+              </label>
+              <img id="avaliacaoImagemPreview" src="" alt="" style="display:none;max-height:140px;border-radius:8px;margin-top:0.5rem;object-fit:cover;width:100%">
+            </div>
+            <div class="form-group">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+                <label style="margin:0">Perguntas *</label>
+                <button type="button" class="btn-outline" id="btnAddAvaliacaoQ" style="font-size:0.75rem;padding:0.25rem 0.75rem">
+                  <span class="material-symbols-outlined" style="font-size:1rem">add</span> Adicionar
+                </button>
+              </div>
+              <div id="avaliacaoQList" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+            </div>
+            <div class="form-group" style="flex-direction:row;align-items:center;gap:0.75rem">
+              <input type="checkbox" id="avaliacaoVisivel" checked style="width:1.1rem;height:1.1rem;cursor:pointer">
+              <label for="avaliacaoVisivel" style="margin:0;cursor:pointer">Avaliação visível para os alunos</label>
+            </div>
+            <div class="form-msg" id="avaliacaoError"></div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" id="cancelAvaliacao">Cancelar</button>
+              <button type="submit" class="btn-primary" id="saveAvaliacaoBtn">Salvar Avaliação</button>
             </div>
           </form>
         </div>

@@ -924,6 +924,7 @@ function switchAdminTab(tabName) {
   if (tabName === 'relatorios')        loadReports()
   if (tabName === 'documentos-admin')  loadAdminDocs()
   if (tabName === 'artigos')           loadAdminArtigos()
+  if (tabName === 'avaliacoes')        loadAdminAvaliacoes()
 }
 
 // Carrega dados ao entrar em páginas específicas
@@ -1616,14 +1617,16 @@ async function loadCatalogo() {
   const grid = document.getElementById('catalogoGrid')
   grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando vídeos...</p></div>'
 
-  const [{ data: videos, error }, { data: artigos }] = await Promise.all([
+  const [{ data: videos, error }, { data: artigos }, { data: avaliacoes }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, youtube_url, description, ordem').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('artigos').select('id, titulo, descricao, imagem_url, conteudo, conteudo_blocos, topics, ordem').eq('visivel', true).order('ordem', { ascending: true })
+    supabase.from('artigos').select('id, titulo, descricao, imagem_url, conteudo, conteudo_blocos, topics, ordem').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics, ordem').eq('visivel', true).order('ordem', { ascending: true })
   ])
 
   const allItems = [
     ...(videos || []).map(v => ({ ...v, _tipo: 'video' })),
-    ...(artigos || []).map(a => ({ ...a, _tipo: 'artigo' }))
+    ...(artigos || []).map(a => ({ ...a, _tipo: 'artigo' })),
+    ...(avaliacoes || []).map(a => ({ ...a, _tipo: 'avaliacao' }))
   ]
 
   if (error || !allItems.length) {
@@ -1634,24 +1637,24 @@ async function loadCatalogo() {
   grid.innerHTML = ''
   _catalogItems = allItems
   allItems.forEach(v => {
-    const isArtigo = v._tipo === 'artigo'
-    const vid      = !isArtigo ? ytVideoId(v.youtube_url) : null
-    const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : (isArtigo && v.imagem_url ? v.imagem_url : null)
-    const progress    = !isArtigo ? getVideoProgress(v.id) : getArtigoProgress(v.id)
+    const isArtigo    = v._tipo === 'artigo'
+    const isAvaliacao = v._tipo === 'avaliacao'
+    const isVideo     = v._tipo === 'video'
+    const vid      = isVideo ? ytVideoId(v.youtube_url) : null
+    const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : (v.imagem_url || null)
+    const progress    = isVideo ? getVideoProgress(v.id) : isArtigo ? getArtigoProgress(v.id) : getAvaliacaoProgress(v.id)
     const isConcluido = progress === 'completed'
-    const badgeCls = isConcluido                  ? 'badge-tag'
-                   : progress === 'started'        ? 'badge-progress'
-                   : 'badge-neutral'
-    const badgeTxt = isArtigo && isConcluido ? 'Concluído'
-                   : isArtigo               ? 'Leitura'
-                   : isConcluido            ? 'Concluído'
+    const badgeCls = isConcluido ? 'badge-tag' : progress === 'started' ? 'badge-progress' : 'badge-neutral'
+    const badgeTxt = isConcluido    ? 'Concluído'
+                   : isAvaliacao    ? 'Avaliação'
+                   : isArtigo       ? 'Leitura'
                    : progress === 'started' ? 'Em Andamento'
                    : 'Disponível'
-    const pct      = progress === 'completed' ? 100
-                   : progress === 'started'   ? 50 : 0
-    const cardIcon = isArtigo ? 'article' : 'play_circle'
-    const title    = isArtigo ? v.titulo : v.title
-    const desc     = isArtigo ? v.descricao : v.description
+    const pct      = progress === 'completed' ? 100 : progress === 'started' ? 50 : 0
+    const cardIcon = isAvaliacao ? 'assignment' : isArtigo ? 'article' : 'play_circle'
+    const overlayIcon = isAvaliacao ? 'assignment' : isArtigo ? 'menu_book' : 'play_arrow'
+    const title    = isVideo ? v.title : v.titulo
+    const desc     = isVideo ? v.description : v.descricao
 
     const article = document.createElement('article')
     article.className = 'card'
@@ -1664,19 +1667,19 @@ async function loadCatalogo() {
           : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface)"><span class="material-symbols-outlined" style="font-size:3rem;color:var(--text-secondary)">${cardIcon}</span></div>`}
         ${isConcluido ? `<div class="card-done-overlay"><span class="material-symbols-outlined icon-filled">check_circle</span></div>` : ''}
         <div class="card-play-overlay">
-          <div class="card-play-circle"><span class="material-symbols-outlined">${isArtigo ? 'menu_book' : 'play_arrow'}</span></div>
+          <div class="card-play-circle"><span class="material-symbols-outlined">${overlayIcon}</span></div>
         </div>
       </div>
       <div class="card-body">
         <div class="card-meta">
-          <span class="badge ${isArtigo ? 'badge-neutral' : badgeCls}">${badgeTxt}</span>
+          <span class="badge ${isVideo ? badgeCls : 'badge-neutral'}">${badgeTxt}</span>
           ${v.topics ? `<span style="font-size:0.75rem;color:var(--text-secondary)">${escHtml(v.topics)}</span>` : ''}
         </div>
         <h2 class="card-title">${escHtml(title)}</h2>
         ${desc ? `<p class="card-desc">${escHtml(desc)}</p>` : ''}
-        ${!isArtigo ? `<div class="progress-bar"><div class="progress-fill${isConcluido ? ' done' : ''}" style="width:${pct}%"></div></div>` : ''}
+        ${isVideo ? `<div class="progress-bar"><div class="progress-fill${isConcluido ? ' done' : ''}" style="width:${pct}%"></div></div>` : ''}
       </div>`
-    const handler = isArtigo ? () => openArtigo(v) : () => openVideoSala(v)
+    const handler = isAvaliacao ? () => openAvaliacao(v) : isArtigo ? () => openArtigo(v) : () => openVideoSala(v)
     article.addEventListener('click', handler)
     article.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler() } })
     grid.appendChild(article)
@@ -1865,6 +1868,345 @@ function openVideoSala(video) {
   window.showPage('sala')
 }
 window.loadCatalogo = loadCatalogo
+
+// ============================================
+// AVALIAÇÕES — Admin CRUD
+// ============================================
+let editingAvaliacaoId  = null
+let _avaliacaoImagemUrl = null
+let _avaliacaoQuestoes  = []
+
+async function loadAdminAvaliacoes() {
+  const listEl = document.getElementById('avaliacoesList')
+  if (!listEl) return
+  listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
+  const { data, error } = await supabase.from('avaliacoes').select('*').order('ordem', { ascending: true })
+  const count = data?.length || 0
+  const countEl = document.getElementById('avaliacoesCount')
+  if (countEl) countEl.textContent = `${count} avaliação${count !== 1 ? 'ões' : ''}`
+  if (error || !count) {
+    listEl.innerHTML = '<div class="list-empty"><span class="material-symbols-outlined">assignment</span><p>Nenhuma avaliação cadastrada ainda.</p></div>'
+    return
+  }
+  listEl.innerHTML = ''
+  data.forEach((a, i) => listEl.appendChild(renderAvaliacaoAdminCard(a, i, data.length)))
+}
+
+function renderAvaliacaoAdminCard(a, idx, total) {
+  const oculto = a.visivel === false
+  const div = document.createElement('div')
+  div.className = 'admin-list-item'
+  div.style.opacity = oculto ? '0.55' : '1'
+  div.innerHTML = `
+    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/cover no-repeat` : ''}">
+      ${!a.imagem_url ? '<span class="material-symbols-outlined">assignment</span>' : ''}
+    </div>
+    <div class="ali-info">
+      <div class="ali-meta">
+        <span class="badge badge-tag"><span class="material-symbols-outlined">assignment</span>Avaliação</span>
+        ${a.topics ? `<span class="ali-extra">${escHtml(a.topics)}</span>` : ''}
+        ${oculto ? '<span class="ali-extra" style="color:#ff6b6b">● Oculto</span>' : ''}
+      </div>
+      <h4 class="ali-title">${escHtml(a.titulo)}</h4>
+      ${a.descricao ? `<p class="ali-desc">${escHtml(a.descricao)}</p>` : ''}
+    </div>
+    <div class="ali-actions" style="flex-direction:column;gap:0.25rem">
+      <div style="display:flex;gap:0.25rem">
+        <button class="btn-icon" title="Mover para cima" ${idx === 0 ? 'disabled' : ''} onclick="moveAvaliacao(${a.id}, -1)">
+          <span class="material-symbols-outlined">arrow_upward</span>
+        </button>
+        <button class="btn-icon" title="Mover para baixo" ${idx === total - 1 ? 'disabled' : ''} onclick="moveAvaliacao(${a.id}, 1)">
+          <span class="material-symbols-outlined">arrow_downward</span>
+        </button>
+      </div>
+      <div style="display:flex;gap:0.25rem">
+        <button class="btn-icon" title="Editar" onclick="editAvaliacao(${a.id})">
+          <span class="material-symbols-outlined">edit</span>
+        </button>
+        <button class="btn-icon btn-danger" title="Excluir" onclick="deleteAvaliacao(${a.id})">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
+      </div>
+    </div>`
+  return div
+}
+
+async function moveAvaliacao(id, direction) {
+  const { data } = await supabase.from('avaliacoes').select('id, ordem').order('ordem', { ascending: true })
+  if (!data) return
+  const idx  = data.findIndex(a => a.id === id)
+  const swap = data[idx + direction]
+  if (!swap) return
+  await Promise.all([
+    supabase.from('avaliacoes').update({ ordem: swap.ordem }).eq('id', id),
+    supabase.from('avaliacoes').update({ ordem: data[idx].ordem }).eq('id', swap.id)
+  ])
+  loadAdminAvaliacoes()
+}
+window.moveAvaliacao = moveAvaliacao
+
+async function deleteAvaliacao(id) {
+  if (!confirm('Tem certeza que deseja excluir esta avaliação?')) return
+  await supabase.from('avaliacoes').delete().eq('id', id)
+  loadAdminAvaliacoes()
+}
+window.deleteAvaliacao = deleteAvaliacao
+
+async function editAvaliacao(id) {
+  const { data } = await supabase.from('avaliacoes').select('*').eq('id', id).single()
+  if (data) openAvaliacaoModal(data)
+}
+window.editAvaliacao = editAvaliacao
+
+function renderAvaliacaoQList() {
+  const listEl = document.getElementById('avaliacaoQList')
+  if (!listEl) return
+  if (!_avaliacaoQuestoes.length) {
+    listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary);padding:0.25rem 0">Nenhuma pergunta adicionada.</p>'
+    return
+  }
+  listEl.innerHTML = _avaliacaoQuestoes.map((q, qi) => `
+    <div class="artigo-q-card surface-card" style="padding:0.75rem;gap:0.5rem;display:flex;flex-direction:column" data-qi="${qi}">
+      <div style="display:flex;align-items:flex-start;gap:0.5rem">
+        <span style="font-size:0.7rem;font-weight:700;color:var(--primary);padding-top:0.6rem;flex-shrink:0">Q${qi+1}</span>
+        <textarea class="av-q-enunciado" rows="2" placeholder="Texto da pergunta..." style="flex:1;resize:vertical;padding:0.4rem 0.5rem;font-size:0.85rem;border:1px solid var(--outline-var);border-radius:var(--r-sm);background:var(--input-bg);color:var(--on-surface)">${escHtml(q.enunciado || '')}</textarea>
+        <button type="button" class="btn-icon av-q-del" data-qi="${qi}" style="color:var(--error);flex-shrink:0">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.3rem;padding-left:1.5rem">
+        ${[0,1,2,3].map(oi => `
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;cursor:pointer">
+            <input type="radio" name="avq-correct-${qi}" value="${oi}" ${(q.correct_index ?? 0) === oi ? 'checked' : ''} style="cursor:pointer">
+            <input type="text" class="av-q-opt" data-qi="${qi}" data-oi="${oi}"
+              placeholder="Opção ${oi+1}" value="${escHtml(q.options?.[oi] || '')}"
+              style="flex:1;padding:0.3rem 0.5rem;font-size:0.8rem;border:1px solid var(--outline-var);border-radius:var(--r-sm);background:var(--input-bg);color:var(--on-surface)">
+          </label>`).join('')}
+      </div>
+    </div>`).join('')
+
+  listEl.querySelectorAll('.av-q-del').forEach(btn =>
+    btn.addEventListener('click', () => { _avaliacaoQuestoes.splice(+btn.dataset.qi, 1); renderAvaliacaoQList() }))
+  listEl.querySelectorAll('.av-q-enunciado').forEach(ta =>
+    ta.addEventListener('input', () => { _avaliacaoQuestoes[+ta.closest('[data-qi]').dataset.qi].enunciado = ta.value }))
+  listEl.querySelectorAll('.av-q-opt').forEach(inp =>
+    inp.addEventListener('input', () => { _avaliacaoQuestoes[+inp.dataset.qi].options[+inp.dataset.oi] = inp.value }))
+  listEl.querySelectorAll('input[type="radio"]').forEach(r =>
+    r.addEventListener('change', () => { _avaliacaoQuestoes[+r.name.replace('avq-correct-','')].correct_index = +r.value }))
+}
+
+document.getElementById('btnAddAvaliacaoQ')?.addEventListener('click', () => {
+  _avaliacaoQuestoes.push({ id: null, enunciado: '', options: ['','','',''], correct_index: 0 })
+  renderAvaliacaoQList()
+})
+
+async function openAvaliacaoModal(av = null) {
+  editingAvaliacaoId  = null
+  _avaliacaoImagemUrl = null
+  _avaliacaoQuestoes  = []
+  document.getElementById('formAvaliacao').reset()
+  document.getElementById('avaliacaoError').textContent = ''
+  document.getElementById('avaliacaoImagemPreview').style.display = 'none'
+  document.getElementById('modalAvaliacaoTitle').textContent  = av ? 'Editar Avaliação' : 'Nova Avaliação'
+  document.getElementById('saveAvaliacaoBtn').textContent     = av ? 'Salvar Alterações' : 'Salvar Avaliação'
+  if (av) {
+    editingAvaliacaoId  = av.id
+    _avaliacaoImagemUrl = av.imagem_url || null
+    document.getElementById('avaliacaoTitulo').value    = av.titulo || ''
+    document.getElementById('avaliacaoDescricao').value = av.descricao || ''
+    document.getElementById('avaliacaoTopics').value    = av.topics || ''
+    document.getElementById('avaliacaoVisivel').checked = av.visivel !== false
+    if (av.imagem_url) {
+      const preview = document.getElementById('avaliacaoImagemPreview')
+      preview.src = av.imagem_url; preview.style.display = ''
+      document.getElementById('avaliacaoImagemLabelText').textContent = 'Imagem atual (clique para trocar)'
+    }
+    const { data: qs } = await supabase.from('questoes_avaliacao')
+      .select('*').eq('avaliacao_id', av.id).order('ordem', { ascending: true })
+    _avaliacaoQuestoes = (qs || []).map(q => ({
+      id: q.id, enunciado: q.question,
+      options: [q.option_a || '', q.option_b || '', q.option_c || '', q.option_d || ''],
+      correct_index: q.correct_index ?? 0
+    }))
+  }
+  renderAvaliacaoQList()
+  document.getElementById('modalAvaliacao').classList.add('open')
+}
+
+function closeAvaliacaoModal() {
+  document.getElementById('modalAvaliacao').classList.remove('open')
+}
+
+document.getElementById('btnAddAvaliacao')?.addEventListener('click', () => openAvaliacaoModal())
+document.getElementById('closeModalAvaliacao')?.addEventListener('click', closeAvaliacaoModal)
+document.getElementById('cancelAvaliacao')?.addEventListener('click', closeAvaliacaoModal)
+
+document.getElementById('avaliacaoImagemFile')?.addEventListener('change', e => {
+  const file = e.target.files[0]
+  const preview = document.getElementById('avaliacaoImagemPreview')
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = ev => { preview.src = ev.target.result; preview.style.display = '' }
+    reader.readAsDataURL(file)
+    document.getElementById('avaliacaoImagemLabelText').textContent = file.name
+  } else {
+    preview.style.display = 'none'
+    document.getElementById('avaliacaoImagemLabelText').textContent = 'Clique para escolher uma imagem'
+  }
+})
+
+document.getElementById('formAvaliacao')?.addEventListener('submit', async e => {
+  e.preventDefault()
+  const btn       = e.target.querySelector('[type="submit"]')
+  const errorEl   = document.getElementById('avaliacaoError')
+  const titulo    = document.getElementById('avaliacaoTitulo').value.trim()
+  const descricao = document.getElementById('avaliacaoDescricao').value.trim()
+  const topics    = document.getElementById('avaliacaoTopics').value.trim()
+  const visivel   = document.getElementById('avaliacaoVisivel').checked
+  const file      = document.getElementById('avaliacaoImagemFile').files[0]
+  if (!titulo) { errorEl.textContent = 'Preencha o título.'; return }
+  setLoading(btn, true, 'Salvando...')
+  errorEl.textContent = ''
+  let imagemUrl = _avaliacaoImagemUrl
+  if (file) {
+    const ext = file.name.split('.').pop()
+    const path = `avaliacoes/${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('imagens').upload(path, file, { upsert: true })
+    if (upErr) { errorEl.textContent = 'Erro ao enviar imagem: ' + upErr.message; setLoading(btn, false, editingAvaliacaoId ? 'Salvar Alterações' : 'Salvar Avaliação'); return }
+    const { data: urlData } = supabase.storage.from('imagens').getPublicUrl(path)
+    imagemUrl = urlData.publicUrl
+  }
+  const payload = { titulo, descricao: descricao || null, topics: topics || null, imagem_url: imagemUrl || null, visivel }
+  let savedId = editingAvaliacaoId
+  if (editingAvaliacaoId) {
+    const { error } = await supabase.from('avaliacoes').update(payload).eq('id', editingAvaliacaoId)
+    if (error) { errorEl.textContent = 'Erro: ' + error.message; setLoading(btn, false, 'Salvar Alterações'); return }
+  } else {
+    const { data: inserted, error } = await supabase.from('avaliacoes').insert(payload).select('id').single()
+    if (error) { errorEl.textContent = 'Erro: ' + error.message; setLoading(btn, false, 'Salvar Avaliação'); return }
+    savedId = inserted.id
+  }
+  await supabase.from('questoes_avaliacao').delete().eq('avaliacao_id', savedId)
+  const pergsValidas = _avaliacaoQuestoes.filter(q => q.enunciado?.trim() && q.options?.filter(o => o?.trim()).length >= 2)
+  if (pergsValidas.length) {
+    await supabase.from('questoes_avaliacao').insert(
+      pergsValidas.map((q, i) => ({
+        avaliacao_id: savedId, question: q.enunciado,
+        option_a: q.options[0] || '', option_b: q.options[1] || '',
+        option_c: q.options[2] || '', option_d: q.options[3] || '',
+        correct_index: q.correct_index ?? 0, ordem: i + 1
+      }))
+    )
+  }
+  setLoading(btn, false, editingAvaliacaoId ? 'Salvar Alterações' : 'Salvar Avaliação')
+  closeAvaliacaoModal()
+  loadAdminAvaliacoes()
+})
+
+// ============================================
+// AVALIAÇÕES — Viewer (aluno faz a prova)
+// ============================================
+function getAvaliacaoProgress(id) {
+  if (!currentUser) return null
+  return localStorage.getItem(`eduflow-av-${currentUser.id}-${id}`) || null
+}
+
+async function openAvaliacao(av) {
+  document.getElementById('avaliacaoTituloEl').textContent    = av.titulo || ''
+  document.getElementById('avaliacaoDescricaoEl').textContent = av.descricao || ''
+  document.getElementById('avaliacaoPageTopics').textContent  = av.topics || ''
+  const imgWrap = document.getElementById('avaliacaoImagemWrap')
+  const imgEl   = document.getElementById('avaliacaoImagemEl')
+  if (av.imagem_url) { imgEl.src = av.imagem_url; imgWrap.style.display = '' }
+  else imgWrap.style.display = 'none'
+
+  window.showPage('avaliacao')
+
+  const conteudo   = document.getElementById('avaliacaoConteudo')
+  const jaConcluido = getAvaliacaoProgress(av.id) === 'completed'
+
+  if (jaConcluido) {
+    conteudo.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--success)">
+      <span class="material-symbols-outlined icon-filled" style="font-size:3rem">check_circle</span>
+      <p style="font-weight:700;font-size:1.1rem;margin-top:0.5rem">Avaliação já concluída!</p>
+    </div>`
+    return
+  }
+
+  const { data: questoes } = await supabase.from('questoes_avaliacao')
+    .select('*').eq('avaliacao_id', av.id).order('ordem', { ascending: true })
+
+  if (!questoes?.length) {
+    conteudo.innerHTML = '<p style="color:var(--text-secondary);text-align:center">Esta avaliação ainda não tem perguntas.</p>'
+    return
+  }
+
+  let qIdx = 0
+  let acertos = 0
+  const respostas = {}
+
+  function renderQ() {
+    const q = questoes[qIdx]
+    conteudo.innerHTML = `
+      <div class="quiz-card">
+        <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem">Pergunta ${qIdx+1} de ${questoes.length}</p>
+        <p style="font-weight:600;margin-bottom:1rem">${escHtml(q.question)}</p>
+        <div class="quiz-options" id="avOptions">
+          ${[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((opt,oi) => `
+            <label class="quiz-option" data-oi="${oi}">
+              <input type="radio" name="av-quiz" value="${oi}">
+              <span>${escHtml(opt)}</span>
+            </label>`).join('')}
+        </div>
+        <div class="quiz-feedback" id="avFeedback"></div>
+        <button class="btn-primary" id="avConfirm" style="margin-top:1rem;width:100%">Confirmar Resposta</button>
+      </div>`
+
+    document.getElementById('avConfirm').addEventListener('click', () => {
+      const chosen = conteudo.querySelector('input[name="av-quiz"]:checked')
+      if (!chosen) return
+      const oi = +chosen.value
+      const isCorrect = oi === (q.correct_index ?? 0)
+      if (isCorrect) acertos++
+      respostas[q.id] = isCorrect
+      conteudo.querySelectorAll('.quiz-option').forEach(l => { l.style.pointerEvents = 'none' })
+      conteudo.querySelectorAll('.quiz-option')[q.correct_index ?? 0]?.classList.add('correct')
+      if (!isCorrect) conteudo.querySelectorAll('.quiz-option')[oi]?.classList.add('wrong')
+      const fb = document.getElementById('avFeedback')
+      fb.className = `quiz-feedback ${isCorrect ? 'ok' : 'err'}`
+      fb.innerHTML = isCorrect ? '<strong>✓ Correto!</strong>' : '<strong>✗ Incorreta.</strong> A correta está em verde.'
+      const btn = document.getElementById('avConfirm')
+      btn.textContent = qIdx < questoes.length - 1 ? 'Próxima' : 'Ver Resultado'
+      btn.onclick = () => {
+        if (qIdx < questoes.length - 1) { qIdx++; renderQ() }
+        else mostrarResultado()
+      }
+    })
+  }
+
+  function mostrarResultado() {
+    const pct = Math.round((acertos / questoes.length) * 100)
+    localStorage.setItem(`eduflow-av-${currentUser.id}-${av.id}`, 'completed')
+    supabase.from('progresso_usuario').upsert(
+      { user_id: currentUser.id, item_id: av.id, item_tipo: 'avaliacao', concluido: true },
+      { onConflict: 'user_id,item_id,item_tipo' }
+    )
+    conteudo.innerHTML = `
+      <div style="text-align:center;padding:2rem">
+        <span class="material-symbols-outlined icon-filled" style="font-size:3rem;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'}">
+          ${pct >= 70 ? 'emoji_events' : 'info'}
+        </span>
+        <p style="font-size:1.6rem;font-weight:700;margin:0.75rem 0 0.25rem">${pct}%</p>
+        <p style="color:var(--text-secondary)">${acertos} de ${questoes.length} ${questoes.length !== 1 ? 'perguntas corretas' : 'pergunta correta'}</p>
+        <p style="margin-top:1rem;font-weight:600;color:${pct >= 70 ? 'var(--success)' : 'var(--error)'}">
+          ${pct >= 70 ? 'Parabéns! Avaliação concluída com sucesso.' : 'Avaliação concluída. Continue estudando!'}
+        </p>
+      </div>`
+  }
+
+  renderQ()
+}
+window.openAvaliacao = openAvaliacao
 
 // ============================================
 // ADMIN — Fechar modal clicando fora
@@ -3469,88 +3811,177 @@ async function loadHome() {
 }
 
 // ============================================
-// CERTIFICADO — gera PDF de conclusão
+// CERTIFICADO — gerado pelo admin
 // ============================================
-async function gerarCertificado() {
-  if (!currentUser) return
+async function gerarCertificado(userId, userName) {
+  const nome = userName || 'Colaborador'
+  const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
-  const cached  = localStorage.getItem('eduflow-profile-' + currentUser.id)
-  const profile = cached ? JSON.parse(cached) : {}
-  const nome    = profile.name || currentUser.email?.split('@')[0] || 'Colaborador'
-
+  const { data: respostas } = await supabase
+    .from('respostas').select('question_id').eq('user_id', userId)
   const { data: videos } = await supabase
     .from('videos').select('id, topics, title').eq('visivel', true).order('ordem', { ascending: true })
+  const { data: questoes } = await supabase
+    .from('questoes_sala_de_aula').select('id, video_id')
+
+  const respondidosIds = new Set((respostas || []).map(r => r.question_id))
+  const qPorVideo = {}
+  for (const q of (questoes || [])) {
+    if (!qPorVideo[q.video_id]) qPorVideo[q.video_id] = []
+    qPorVideo[q.video_id].push(q.id)
+  }
 
   const trilhasMap = {}
   for (const v of (videos || [])) {
     const key = v.topics || v.title
     if (!trilhasMap[key]) trilhasMap[key] = { vids: [], done: 0 }
     trilhasMap[key].vids.push(v)
-    if (getVideoProgress(v.id) === 'completed') trilhasMap[key].done++
+    const qs = qPorVideo[v.id] || []
+    if (qs.length > 0 && qs.every(qid => respondidosIds.has(qid))) trilhasMap[key].done++
+    else if (qs.length === 0) trilhasMap[key].done++ // sem quiz considera concluído se admin gerou
   }
 
-  const concluidasHtml = Object.entries(trilhasMap)
-    .filter(([, t]) => t.done === t.vids.length && t.vids.length > 0)
-    .map(([trilha]) => `<li>${escHtml(trilha)}</li>`)
+  const chips = Object.entries(trilhasMap)
+    .filter(([, t]) => t.done > 0)
+    .map(([trilha]) => `<span class="chip">${escHtml(trilha)}</span>`)
     .join('')
-
-  const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Certificado EduJuju</title>
+<title>Certificado — ${escHtml(nome)}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 @page{size:A4 landscape;margin:0}
-body{font-family:'Segoe UI',Arial,sans-serif;width:297mm;height:210mm;display:flex;align-items:center;justify-content:center;background:#fff}
-.cert{width:263mm;height:183mm;border:6px double #6c63ff;border-radius:16px;padding:36px 56px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(135deg,#fefcff 0%,#f3f0ff 100%);position:relative;overflow:hidden}
-.corner{position:absolute;font-size:6rem;opacity:0.05;color:#6c63ff;line-height:1}
-.corner.tl{top:-10px;left:-10px}
-.corner.tr{top:-10px;right:-10px}
-.corner.bl{bottom:-10px;left:-10px}
-.corner.br{bottom:-10px;right:-10px}
-.icon{font-size:2.75rem;margin-bottom:4px}
-.cert-title{font-size:2rem;font-weight:700;color:#1a1a2e;letter-spacing:0.04em;text-transform:uppercase}
-.cert-hospital{font-size:0.8rem;font-weight:600;color:#6c63ff;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:20px}
-.cert-body{font-size:1rem;color:#555;margin-bottom:4px}
-.cert-name{font-size:2.25rem;font-weight:700;color:#6c63ff;margin:8px 0 20px}
-.cert-trilhas-label{font-size:0.8rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px}
-.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:24px}
-.chip{background:#ede9fe;color:#5b21b6;border-radius:20px;padding:4px 14px;font-size:0.8rem;font-weight:600}
-.cert-footer{display:flex;justify-content:space-between;width:100%;border-top:1px dashed #c4b5fd;padding-top:16px;margin-top:auto}
-.sig{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:130px}
-.sig-line{font-size:0.7rem;color:#666}
-.cert-date{font-size:0.75rem;color:#888;align-self:center}
+body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;overflow:hidden;background:#fff;display:flex}
+.side{width:48px;background:linear-gradient(180deg,#4f46e5 0%,#7c3aed 55%,#f59e0b 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.side-text{color:rgba(255,255,255,0.6);font-size:0.5rem;letter-spacing:0.22em;text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);font-family:'Segoe UI',Arial,sans-serif}
+.main{flex:1;display:flex;flex-direction:column}
+.top-bar{height:6px;background:linear-gradient(90deg,#4f46e5,#7c3aed,#f59e0b)}
+.hdr{padding:14px 40px 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #ede9fe;background:#faf9ff}
+.hdr-tag{font-size:0.62rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#7c3aed;font-family:'Segoe UI',Arial,sans-serif}
+.hdr-hospital{font-size:1rem;font-weight:700;color:#1a1a2e;margin-top:2px;font-family:'Georgia',serif}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.hdr-icon{font-size:2.4rem;line-height:1}
+.hdr-badge{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;font-size:0.58rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:4px 12px;border-radius:20px;font-family:'Segoe UI',Arial,sans-serif;white-space:nowrap}
+.body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding:16px 52px 12px;text-align:center}
+.cert-top{display:flex;flex-direction:column;align-items:center;gap:4px}
+.lbl{font-size:0.68rem;color:#9ca3af;letter-spacing:0.16em;text-transform:uppercase;font-family:'Segoe UI',Arial,sans-serif}
+.name{font-size:2.6rem;font-weight:700;color:#1a1a2e;font-family:'Georgia',serif;line-height:1.15}
+.deco{display:flex;align-items:center;gap:10px;margin:0 auto}
+.deco-line{flex:1;height:1.5px;background:linear-gradient(90deg,transparent,#c4b5fd)}
+.deco-star{font-size:1rem;color:#7c3aed}
+.deco-line.r{background:linear-gradient(90deg,#c4b5fd,transparent)}
+.stmt{font-size:0.9rem;color:#374151;line-height:1.8;max-width:500px;font-family:'Segoe UI',Arial,sans-serif}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chip{background:#ede9fe;color:#5b21b6;border-radius:20px;padding:4px 16px;font-size:0.72rem;font-weight:600;font-family:'Segoe UI',Arial,sans-serif;border:1px solid #c4b5fd}
+.ftr{padding:10px 40px 12px;display:flex;align-items:flex-end;justify-content:space-between;border-top:1.5px solid #e5e7eb;background:#faf9ff}
+.sig{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:155px}
+.sig-line{width:155px;border-top:1px solid #6b7280;margin-bottom:3px}
+.sig-name{font-size:0.68rem;font-weight:700;color:#1f2937;font-family:'Segoe UI',Arial,sans-serif}
+.sig-role{font-size:0.58rem;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;font-family:'Segoe UI',Arial,sans-serif}
+.ftr-mid{text-align:center}
+.ftr-date{font-size:0.72rem;color:#4b5563;font-family:'Segoe UI',Arial,sans-serif;font-weight:600}
+.ftr-city{font-size:0.6rem;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;margin-top:2px}
+.bot-bar{height:6px;background:linear-gradient(90deg,#f59e0b,#7c3aed,#4f46e5)}
 </style>
 </head>
 <body>
-<div class="cert">
-  <div class="corner tl">✦</div><div class="corner tr">✦</div>
-  <div class="corner bl">✦</div><div class="corner br">✦</div>
-  <div class="icon">🎓</div>
-  <div class="cert-title">Certificado de Conclusão</div>
-  <div class="cert-hospital">Hospital Infantil Dr. Juvêncio Mattos — EduJuju</div>
-  <p class="cert-body">Certificamos que</p>
-  <div class="cert-name">${escHtml(nome)}</div>
-  <p class="cert-body">concluiu com êxito as trilhas de aprendizado:</p>
-  <div class="cert-trilhas-label" style="margin-top:8px">Trilhas concluídas</div>
-  <div class="chips">${concluidasHtml}</div>
-  <div class="cert-footer">
-    <div class="sig"><div style="width:130px;border-top:1.5px solid #999;margin-bottom:4px"></div><span class="sig-line">Coordenação Pedagógica</span></div>
-    <div class="cert-date">${hoje}</div>
-    <div class="sig"><div style="width:130px;border-top:1.5px solid #999;margin-bottom:4px"></div><span class="sig-line">Diretoria do Hospital</span></div>
+<div class="side"><span class="side-text">Hospital Infantil Dr. Juvêncio Mattos</span></div>
+<div class="main">
+  <div class="top-bar"></div>
+  <div class="hdr">
+    <div>
+      <div class="hdr-tag">Plataforma EduJuju &nbsp;·&nbsp; Certificado de Conclusão</div>
+      <div class="hdr-hospital">Hospital Infantil Dr. Juvêncio Mattos</div>
+    </div>
+    <div class="hdr-right">
+      <span class="hdr-badge">Certificado Oficial</span>
+      <div class="hdr-icon">🎓</div>
+    </div>
   </div>
+  <div class="body">
+    <div class="cert-top">
+      <div class="lbl">Certificamos com honra que</div>
+      <div class="name">${escHtml(nome)}</div>
+    </div>
+    <div class="deco" style="width:320px">
+      <div class="deco-line"></div>
+      <span class="deco-star">✦</span>
+      <div class="deco-line r"></div>
+    </div>
+    <p class="stmt">concluiu com êxito o programa de trilhas de aprendizado da plataforma EduJuju, demonstrando dedicação ao desenvolvimento profissional e à excelência no cuidado prestado.</p>
+    ${chips ? `<div class="chips">${chips}</div>` : ''}
+  </div>
+  <div class="ftr">
+    <div class="sig">
+      <div class="sig-line"></div>
+      <div class="sig-name">Coordenação Pedagógica</div>
+      <div class="sig-role">Assinatura</div>
+    </div>
+    <div class="ftr-mid">
+      <div class="ftr-date">${hoje}</div>
+      <div class="ftr-city">São Luís — Maranhão</div>
+    </div>
+    <div class="sig">
+      <div class="sig-line"></div>
+      <div class="sig-name">Diretoria do Hospital</div>
+      <div class="sig-role">Assinatura</div>
+    </div>
+  </div>
+  <div class="bot-bar"></div>
 </div>
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'width=960,height=720')
+  const win = window.open('', '_blank', 'width=1100,height=800')
   if (!win) { alert('Por favor, permita popups para gerar o certificado.'); return }
   win.document.write(html)
   win.document.close()
   win.onload = () => setTimeout(() => win.print(), 600)
 }
+window.gerarCertificado = gerarCertificado
 
-document.getElementById('btnGerarCertificado')?.addEventListener('click', gerarCertificado)
+function toggleCertAccordion() {
+  const body = document.getElementById('certAccordionBody')
+  const icon = document.getElementById('certAccordionIcon')
+  const isOpen = body.style.display === 'flex'
+  body.style.display = isOpen ? 'none' : 'flex'
+  icon.textContent = isOpen ? 'expand_more' : 'expand_less'
+  if (!isOpen) loadAdminCertificados()
+}
+window.toggleCertAccordion = toggleCertAccordion
+
+async function loadAdminCertificados() {
+  const listEl = document.getElementById('adminCertList')
+  if (!listEl) return
+  listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
+
+  const { data: users } = await supabase
+    .from('users').select('id, name, email, sector').order('name', { ascending: true })
+
+  if (!users?.length) {
+    listEl.innerHTML = '<div class="list-empty"><p>Nenhum usuário encontrado.</p></div>'
+    return
+  }
+
+  listEl.innerHTML = ''
+  for (const u of users) {
+    const nome = u.name || u.email?.split('@')[0] || 'Usuário'
+    const div = document.createElement('div')
+    div.className = 'admin-list-item'
+    div.style.cssText = 'padding:0.6rem 1rem'
+    div.innerHTML = `
+      <div class="ali-info" style="flex:1">
+        <h4 class="ali-title" style="font-size:0.9rem">${escHtml(nome)}</h4>
+        ${u.sector ? `<p class="ali-desc" style="font-size:0.75rem">${escHtml(u.sector)}</p>` : ''}
+      </div>
+      <button class="btn-outline" style="font-size:0.8rem;padding:0.35rem 0.9rem;white-space:nowrap"
+        onclick="gerarCertificado('${u.id}','${escHtml(nome)}')">
+        <span class="material-symbols-outlined" style="font-size:1rem">workspace_premium</span>
+        Gerar Certificado
+      </button>`
+    listEl.appendChild(div)
+  }
+}
