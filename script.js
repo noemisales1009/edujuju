@@ -1509,7 +1509,10 @@ document.getElementById('formDoc').addEventListener('submit', async e => {
   setLoading(btn, true, 'Enviando...')
   errorEl.textContent = ''
 
-  const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`
+  const safeName = file.name
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_')
+  const fileName = `${Date.now()}_${safeName}`
   const { data: uploaded, error: upErr } = await supabase.storage
     .from('documentos')
     .upload(fileName, file, { contentType: 'application/pdf' })
