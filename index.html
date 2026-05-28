@@ -15,10 +15,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://unpkg.com/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script defer src="https://unpkg.com/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
   <style>
     @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
 
@@ -792,6 +792,15 @@
               <div class="yt-preview" id="ytPreview"></div>
             </div>
             <div class="form-group">
+              <label>Duração do vídeo *</label>
+              <div style="display:flex;gap:0.5rem;align-items:center">
+                <input type="number" id="videoDuracaoMin" placeholder="Min" min="0" style="width:90px" required>
+                <span style="color:var(--text-secondary);font-size:0.9rem">min</span>
+                <input type="number" id="videoDuracaoSeg" placeholder="Seg" min="0" max="59" style="width:90px">
+                <span style="color:var(--text-secondary);font-size:0.9rem">seg</span>
+              </div>
+            </div>
+            <div class="form-group">
               <label>Tópicos</label>
               <input type="text" id="videoTopics" placeholder="Ex: AULA 1 - IRAS">
             </div>
@@ -833,9 +842,13 @@
               <input type="text" id="artigoTopics" placeholder="Ex: AULA 1 - IRAS">
             </div>
             <div class="form-group">
-              <label>Imagem <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
-              <input type="file" id="artigoImagemFile" accept="image/*" style="padding:0.4rem;cursor:pointer">
-              <img id="artigoImagemPreview" src="" alt="" style="display:none;max-height:140px;border-radius:8px;margin-top:0.5rem;object-fit:cover">
+              <label>Imagem de capa <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
+              <label class="img-upload-area" id="artigoImagemLabel" for="artigoImagemFile">
+                <span class="material-symbols-outlined">add_photo_alternate</span>
+                <span id="artigoImagemLabelText">Clique para escolher uma imagem</span>
+                <input type="file" id="artigoImagemFile" accept="image/*" style="display:none">
+              </label>
+              <img id="artigoImagemPreview" src="" alt="" style="display:none;max-height:140px;border-radius:8px;margin-top:0.5rem;object-fit:cover;width:100%">
             </div>
             <div class="form-group">
               <label>Conteúdo *</label>
@@ -1208,17 +1221,19 @@
     </div>
   </div>
 
+  <!-- SortableJS (drag-and-drop admin) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <!-- Confetti -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
-  <!-- Editor.js -->
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@2.8.1"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@1.9.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@2.9.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/delimiter@1.4.2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/marker@1.4.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/underline@1.1.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@1.5.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <!-- Editor.js (admin only) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/header@2.8.1"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/list@1.9.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/image@2.9.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/delimiter@1.4.2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/marker@1.4.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/underline@1.1.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@1.5.0"></script>
   <script type="module" src="script.js"></script>
 </body>
 </html>

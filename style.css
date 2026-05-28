@@ -1379,6 +1379,21 @@ ul { list-style: none; }
 .home-cert-card > div { flex: 1; min-width: 0; }
 
 /* Editor.js — container no admin */
+.img-upload-area {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border: 1.5px dashed var(--outline-var);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  transition: border-color var(--ease), background var(--ease);
+}
+.img-upload-area:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.img-upload-area .material-symbols-outlined { font-size: 1.4rem; flex-shrink: 0; }
+
 .artigo-editor-wrap {
   min-height: 260px;
   border: 1px solid var(--outline-var);
@@ -1893,6 +1908,10 @@ ul { list-style: none; }
   position: relative;
 }
 .admin-list-item:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.drag-handle { color: var(--text-secondary); cursor: grab; font-size: 1.4rem; flex-shrink: 0; touch-action: none; }
+.drag-handle:active { cursor: grabbing; }
+.sortable-ghost { opacity: 0.4; background: var(--primary-soft); }
+.sortable-drag { box-shadow: var(--shadow-lg); }
 
 @media (max-width: 539px) {
   .admin-list-item { flex-wrap: wrap; align-items: flex-start; }

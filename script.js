@@ -950,7 +950,7 @@ async function loadPerfilConquistas() {
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:1rem"><span class="material-symbols-outlined" style="animation:spin 1s linear infinite;color:var(--primary)">progress_activity</span></div>'
 
   const [{ data: videos }, { data: notasRaw }] = await Promise.all([
-    supabase.from('videos').select('id, title, topics').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('videos').select('id, title, topics, duracao_seg').eq('visivel', true).order('ordem', { ascending: true }),
     supabase.from('v_desempenho_usuario_trilha').select('video_id, nota_pct').eq('user_id', currentUser.id)
   ])
 
@@ -1035,8 +1035,10 @@ async function loadPerfilConquistas() {
   })
 
   // Atualiza stat cards de progresso
-  const completedVids = videos.filter(v => getVideoProgress(v.id) === 'completed').length
-  const totalMin  = completedVids * 15
+  const totalSeg = videos
+    .filter(v => getVideoProgress(v.id) === 'completed')
+    .reduce((sum, v) => sum + (v.duracao_seg || 0), 0)
+  const totalMin = Math.floor(totalSeg / 60)
   const horas     = Math.floor(totalMin / 60)
   const mins      = totalMin % 60
   const horasText = horas > 0
@@ -1183,7 +1185,7 @@ async function loadDocumentos() {
 
     const thumbId = `thumb-${doc.id}`
     const thumbContent = doc.thumbnail_url
-      ? `<img src="${doc.thumbnail_url}" alt="${escHtml(doc.title)}" style="width:100%;height:100%;object-fit:cover;display:block">`
+      ? `<img src="${doc.thumbnail_url}" alt="${escHtml(doc.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">`
       : `<span class="material-symbols-outlined" style="font-size:4rem;color:var(--primary);opacity:0.7">picture_as_pdf</span>`
     card.innerHTML = `
       <div class="card-img" id="${thumbId}" style="background:linear-gradient(135deg,#f5f0ff,#e8e0ff);display:flex;align-items:center;justify-content:center;min-height:160px;overflow:hidden;padding:0">
@@ -1648,7 +1650,7 @@ async function loadCatalogo() {
     article.innerHTML = `
       <div class="card-img">
         ${thumb
-          ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}">`
+          ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}" loading="lazy">`
           : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface)"><span class="material-symbols-outlined" style="font-size:3rem;color:var(--text-secondary)">${cardIcon}</span></div>`}
         ${isConcluido ? `<div class="card-done-overlay"><span class="material-symbols-outlined icon-filled">check_circle</span></div>` : ''}
         <div class="card-play-overlay">
@@ -1953,11 +1955,14 @@ document.getElementById('cancelArtigo').addEventListener('click', closeArtigoMod
 document.getElementById('artigoImagemFile').addEventListener('change', e => {
   const file    = e.target.files[0]
   const preview = document.getElementById('artigoImagemPreview')
+  const label   = document.getElementById('artigoImagemLabelText')
   if (file) {
-    preview.src          = URL.createObjectURL(file)
+    preview.src           = URL.createObjectURL(file)
     preview.style.display = ''
+    if (label) label.textContent = file.name
   } else {
     preview.style.display = 'none'
+    if (label) label.textContent = 'Clique para escolher uma imagem'
   }
 })
 
@@ -2022,10 +2027,14 @@ async function openArtigoModal(artigo = null) {
     document.getElementById('artigoDescricao').value = artigo.descricao || ''
     document.getElementById('artigoTopics').value    = artigo.topics || ''
     document.getElementById('artigoVisivel').checked = artigo.visivel !== false
+    const labelText = document.getElementById('artigoImagemLabelText')
     if (artigo.imagem_url) {
       const preview = document.getElementById('artigoImagemPreview')
       preview.src           = artigo.imagem_url
       preview.style.display = ''
+      if (labelText) labelText.textContent = 'Imagem atual (clique para trocar)'
+    } else {
+      if (labelText) labelText.textContent = 'Clique para escolher uma imagem'
     }
     // Carrega perguntas existentes
     const { data: qs } = await supabase.from('questoes_sala_de_aula')
@@ -2047,6 +2056,10 @@ async function openArtigoModal(artigo = null) {
       ? [{ type: 'paragraph', data: { text: artigo.conteudo } }]
       : []
   }
+
+  // Abre o modal antes de inicializar o editor — EditorJS precisa do container visível
+  document.getElementById('modalArtigo').classList.add('open')
+  await new Promise(r => requestAnimationFrame(r))
 
   _artigoEditor = new EditorJS({
     holder: 'artigoEditor',
@@ -2076,8 +2089,6 @@ async function openArtigoModal(artigo = null) {
       inlineCode: { class: window.InlineCode },
     },
   })
-
-  document.getElementById('modalArtigo').classList.add('open')
 }
 
 async function closeArtigoModal() {
@@ -2184,22 +2195,38 @@ async function loadVideos() {
   }
 
   listEl.innerHTML = ''
-  videos.forEach((v, i) => listEl.appendChild(renderVideoCard(v, i, videos.length)))
+  videos.forEach(v => listEl.appendChild(renderVideoCard(v)))
   populateVideoSelect(videos)
+
+  if (window.Sortable) {
+    Sortable.create(listEl, {
+      handle: '.drag-handle',
+      animation: 150,
+      onEnd: async ({ oldIndex, newIndex }) => {
+        if (oldIndex === newIndex) return
+        const items = [...listEl.querySelectorAll('[data-id]')]
+        await Promise.all(
+          items.map((el, i) => supabase.from('videos').update({ ordem: i }).eq('id', el.dataset.id))
+        )
+      }
+    })
+  }
 }
 
-function renderVideoCard(v, idx, total) {
+function renderVideoCard(v) {
   const vid      = ytVideoId(v.youtube_url)
   const thumbUrl = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : null
   const oculto   = v.visivel === false
 
   const div = document.createElement('div')
   div.className = 'admin-list-item'
+  div.dataset.id = v.id
   div.style.opacity = oculto ? '0.55' : '1'
   div.innerHTML = `
+    <span class="drag-handle material-symbols-outlined" title="Arrastar para reordenar">drag_indicator</span>
     <div class="ali-thumb ${thumbUrl ? '' : 'ali-thumb-video'}">
       ${thumbUrl
-        ? `<img src="${thumbUrl}" alt="${escHtml(v.title)}">
+        ? `<img src="${thumbUrl}" alt="${escHtml(v.title)}" loading="lazy">
            <div class="ali-play-overlay"><span class="material-symbols-outlined icon-filled">play_circle</span></div>`
         : `<span class="material-symbols-outlined">play_circle</span>`}
     </div>
@@ -2212,40 +2239,17 @@ function renderVideoCard(v, idx, total) {
       <h4 class="ali-title">${escHtml(v.title)}</h4>
       ${v.description ? `<p class="ali-desc">${escHtml(v.description)}</p>` : ''}
     </div>
-    <div class="ali-actions" style="flex-direction:column;gap:0.25rem">
-      <div style="display:flex;gap:0.25rem">
-        <button class="btn-icon" title="Mover para cima" ${idx === 0 ? 'disabled' : ''} onclick="moveVideo(${v.id}, -1)">
-          <span class="material-symbols-outlined">arrow_upward</span>
-        </button>
-        <button class="btn-icon" title="Mover para baixo" ${idx === total - 1 ? 'disabled' : ''} onclick="moveVideo(${v.id}, 1)">
-          <span class="material-symbols-outlined">arrow_downward</span>
-        </button>
-      </div>
-      <div style="display:flex;gap:0.25rem">
-        <button class="btn-icon" title="Editar" onclick="editVideo('${v.id}')">
-          <span class="material-symbols-outlined">edit</span>
-        </button>
-        <button class="btn-icon btn-danger" title="Excluir" onclick="deleteVideo('${v.id}')">
-          <span class="material-symbols-outlined">delete</span>
-        </button>
-      </div>
+    <div class="ali-actions">
+      <button class="btn-icon" title="Editar" onclick="editVideo('${v.id}')">
+        <span class="material-symbols-outlined">edit</span>
+      </button>
+      <button class="btn-icon btn-danger" title="Excluir" onclick="deleteVideo('${v.id}')">
+        <span class="material-symbols-outlined">delete</span>
+      </button>
     </div>`
   return div
 }
 
-async function moveVideo(id, direction) {
-  const { data: videos } = await supabase.from('videos').select('id, ordem').order('ordem', { ascending: true })
-  if (!videos) return
-  const idx  = videos.findIndex(v => v.id === id)
-  const swap = videos[idx + direction]
-  if (!swap) return
-  await Promise.all([
-    supabase.from('videos').update({ ordem: swap.ordem }).eq('id', id),
-    supabase.from('videos').update({ ordem: videos[idx].ordem }).eq('id', swap.id)
-  ])
-  loadVideos()
-}
-window.moveVideo = moveVideo
 
 function populateVideoSelect(videos) {
   const sel = document.getElementById('qVideoId')
@@ -2294,6 +2298,8 @@ function openVideoModal(video = null) {
     document.getElementById('videoTitle').value      = video.title || ''
     document.getElementById('videoDesc').value       = video.description || ''
     document.getElementById('videoUrl').value        = video.youtube_url || ''
+    document.getElementById('videoDuracaoMin').value = video.duracao_seg ? Math.floor(video.duracao_seg / 60) : ''
+    document.getElementById('videoDuracaoSeg').value = video.duracao_seg ? video.duracao_seg % 60 : ''
     document.getElementById('videoTopics').value     = video.topics || ''
     document.getElementById('videoTextoAula').value  = video.texto_aula || ''
     document.getElementById('videoVisivel').checked  = video.visivel !== false
@@ -2331,6 +2337,9 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
   const title      = document.getElementById('videoTitle').value.trim()
   const desc       = document.getElementById('videoDesc').value.trim()
   const url        = document.getElementById('videoUrl').value.trim()
+  const duracaoMin = parseInt(document.getElementById('videoDuracaoMin').value) || 0
+  const duracaoSeg = parseInt(document.getElementById('videoDuracaoSeg').value) || 0
+  const duracao    = (duracaoMin * 60 + duracaoSeg) || null
   const topics     = document.getElementById('videoTopics').value.trim()
   const textoAula  = document.getElementById('videoTextoAula').value.trim()
   const visivel    = document.getElementById('videoVisivel').checked
@@ -2343,7 +2352,7 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
   setLoading(btn, true, 'Salvando...')
   errorEl.textContent = ''
 
-  const payload = { title, description: desc || null, youtube_url: url, topics: topics || null, texto_aula: textoAula || null, visivel }
+  const payload = { title, description: desc || null, youtube_url: url, duracao_seg: duracao, topics: topics || null, texto_aula: textoAula || null, visivel }
 
   let result
   try {
@@ -3334,7 +3343,7 @@ async function loadHome() {
       continueCard.innerHTML = `
         <div class="home-continue-thumb">
           ${thumb
-            ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}">`
+            ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}" loading="lazy">`
             : `<span class="material-symbols-outlined icon-filled" style="font-size:2.5rem;color:var(--primary)">${isArtigo ? 'article' : 'play_circle'}</span>`}
         </div>
         <div class="home-continue-info">
