@@ -1366,7 +1366,7 @@ ul { list-style: none; }
 .home-rank-me { background: color-mix(in srgb, var(--primary) 8%, transparent); border-radius: 8px; }
 .home-rank-me .home-rank-name { color: var(--primary); }
 .home-continue-title { font-size: 0.9rem; font-weight: 700; margin: 0.25rem 0 0.2rem; line-height: 1.3; }
-.home-continue-desc  { font-size: 0.775rem; color: var(--text-secondary); margin: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.home-continue-desc  { font-size: 0.775rem; color: var(--text-secondary); margin: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
 .home-trilha-icon { font-size: 1.75rem; flex-shrink: 0; }
 .home-trilha-info { flex: 1; min-width: 0; }
 
