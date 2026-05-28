@@ -1690,6 +1690,12 @@ function getArtigoProgress(id) {
 function setArtigoProgress(id, status) {
   if (!currentUser) return
   localStorage.setItem(`eduflow-artigo-${currentUser.id}-${id}`, status)
+  if (status === 'completed') {
+    supabase.from('progresso_usuario').upsert(
+      { user_id: currentUser.id, item_id: id, item_tipo: 'artigo', concluido: true },
+      { onConflict: 'user_id,item_id,item_tipo' }
+    )
+  }
 }
 
 function blocksToHtml(blocks = []) {
@@ -1835,6 +1841,12 @@ function getVideoProgress(videoId) {
 function setVideoProgress(videoId, status) {
   if (!currentUser) return
   localStorage.setItem(`eduflow-prog-${currentUser.id}-${videoId}`, status)
+  if (status === 'completed') {
+    supabase.from('progresso_usuario').upsert(
+      { user_id: currentUser.id, item_id: videoId, item_tipo: 'video', concluido: true },
+      { onConflict: 'user_id,item_id,item_tipo' }
+    )
+  }
 }
 
 function getVideoWatched(videoId) {
@@ -3310,6 +3322,19 @@ async function loadHome() {
     ...allArtigos.map(a => ({ ...a,  _tipo: 'artigo' }))
   ]
   if (!_catalogItems.length) _catalogItems = allItems
+
+  // Sincroniza progresso do Supabase para localStorage (garante consistência entre dispositivos)
+  const { data: progressData } = await supabase
+    .from('progresso_usuario')
+    .select('item_id, item_tipo')
+    .eq('user_id', currentUser.id)
+    .eq('concluido', true)
+  if (progressData) {
+    for (const p of progressData) {
+      if (p.item_tipo === 'video') localStorage.setItem(`eduflow-prog-${currentUser.id}-${p.item_id}`, 'completed')
+      else if (p.item_tipo === 'artigo') localStorage.setItem(`eduflow-artigo-${currentUser.id}-${p.item_id}`, 'completed')
+    }
+  }
 
   // --- Progresso geral ---
   const totalItems = allItems.length
