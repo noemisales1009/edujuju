@@ -1193,6 +1193,7 @@ async function loadDocumentos() {
         <div class="card-meta">
           <span class="badge badge-progress">PDF</span>
           ${doc.category ? `<span class="badge badge-neutral">${escHtml(doc.category)}</span>` : ''}
+          ${doc.topics ? `<span style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(doc.topics)}</span>` : ''}
         </div>
         <h2 class="card-title">${escHtml(doc.title)}</h2>
         ${doc.description ? `<p class="card-desc">${escHtml(doc.description)}</p>` : ''}
@@ -1456,7 +1457,7 @@ async function loadAdminDocs() {
         </button>
       </div>`
     div.querySelector('[data-action="edit"]').addEventListener('click', () => {
-      editDoc(doc.id, doc.title, doc.description || '', doc.category || '')
+      editDoc(doc.id, doc.title, doc.description || '', doc.category || '', doc.topics || '')
     })
     div.querySelector('[data-action="delete"]').addEventListener('click', () => {
       deleteDoc(doc.id, doc.file_name || '')
@@ -1485,6 +1486,7 @@ document.getElementById('formDoc').addEventListener('submit', async e => {
   const title   = document.getElementById('docTitle').value.trim()
   const desc    = document.getElementById('docDesc').value.trim()
   const cat     = document.getElementById('docCategory').value.trim()
+  const topics  = document.getElementById('docTopics').value.trim()
   const modal   = document.getElementById('modalDoc')
   const editId  = modal._editId || null
 
@@ -1492,7 +1494,7 @@ document.getElementById('formDoc').addEventListener('submit', async e => {
     setLoading(btn, true, 'Salvando...')
     errorEl.textContent = ''
     const { error: dbErr } = await supabase.from('documentos').update({
-      title, description: desc || null, category: cat || null
+      title, description: desc || null, category: cat || null, topics: topics || null
     }).eq('id', editId)
     setLoading(btn, false, 'Salvar Alterações')
     if (dbErr) { errorEl.textContent = 'Erro ao salvar: ' + dbErr.message; return }
@@ -1550,6 +1552,7 @@ document.getElementById('formDoc').addEventListener('submit', async e => {
     title,
     description: desc || null,
     category: cat || null,
+    topics: topics || null,
     file_url: publicUrl,
     file_name: fileName,
     thumbnail_url: thumbUrl
@@ -1573,7 +1576,7 @@ async function deleteDoc(id, fileName) {
 }
 window.deleteDoc = deleteDoc
 
-function editDoc(id, title, description, category) {
+function editDoc(id, title, description, category, topics) {
   const modal   = document.getElementById('modalDoc')
   const titleEl = modal.querySelector('h2.modal-title')
   const fileGrp = document.getElementById('docFile').closest('.form-group')
@@ -1582,6 +1585,7 @@ function editDoc(id, title, description, category) {
   document.getElementById('docTitle').value    = title
   document.getElementById('docDesc').value     = description
   document.getElementById('docCategory').value = category
+  document.getElementById('docTopics').value   = topics || ''
   document.getElementById('docError').textContent = ''
 
   titleEl.textContent  = 'Editar Documento'
