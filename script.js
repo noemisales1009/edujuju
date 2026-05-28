@@ -1709,13 +1709,20 @@ function setArtigoProgress(id, status) {
 function blocksToHtml(blocks = []) {
   return blocks.map(b => {
     switch (b.type) {
-      case 'header':
-        return `<h${b.data.level}>${b.data.text}</h${b.data.level}>`
-      case 'paragraph':
-        return `<p>${b.data.text}</p>`
+      case 'header': {
+        const htxt = DOMPurify.sanitize(b.data.text || '', {ALLOWED_TAGS:['b','i','u','strong','em','mark','code','a','br'],ALLOWED_ATTR:['href','target']})
+        return `<h${b.data.level}>${htxt}</h${b.data.level}>`
+      }
+      case 'paragraph': {
+        const ptxt = DOMPurify.sanitize(b.data.text || '', {ALLOWED_TAGS:['b','i','u','strong','em','mark','code','a','br'],ALLOWED_ATTR:['href','target']})
+        return `<p>${ptxt}</p>`
+      }
       case 'list': {
         const tag   = b.data.style === 'ordered' ? 'ol' : 'ul'
-        const items = b.data.items.map(i => `<li>${typeof i === 'string' ? i : i.content}</li>`).join('')
+        const items = b.data.items.map(i => {
+          const raw = typeof i === 'string' ? i : (i.content || '')
+          return `<li>${DOMPurify.sanitize(raw, {ALLOWED_TAGS:['b','i','u','strong','em','mark','code','a','br'],ALLOWED_ATTR:['href','target']})}</li>`
+        }).join('')
         return `<${tag}>${items}</${tag}>`
       }
       case 'image': {
