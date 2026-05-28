@@ -3651,6 +3651,7 @@ async function checkTrilhaConcluidaEConfetti(videoId) {
 // ============================================
 async function loadHome() {
   if (!currentUser) return
+  const userId = currentUser.id
 
   const [{ data: videos }, { data: artigos }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
@@ -3666,15 +3667,16 @@ async function loadHome() {
   if (!_catalogItems.length) _catalogItems = allItems
 
   // Sincroniza progresso do Supabase para localStorage (garante consistência entre dispositivos)
+  if (!userId) return
   const { data: progressData } = await supabase
     .from('progresso_usuario')
     .select('item_id, item_tipo')
-    .eq('user_id', currentUser.id)
+    .eq('user_id', userId)
     .eq('concluido', true)
   if (progressData) {
     for (const p of progressData) {
-      if (p.item_tipo === 'video') localStorage.setItem(`eduflow-prog-${currentUser.id}-${p.item_id}`, 'completed')
-      else if (p.item_tipo === 'artigo') localStorage.setItem(`eduflow-artigo-${currentUser.id}-${p.item_id}`, 'completed')
+      if (p.item_tipo === 'video') localStorage.setItem(`eduflow-prog-${userId}-${p.item_id}`, 'completed')
+      else if (p.item_tipo === 'artigo') localStorage.setItem(`eduflow-artigo-${userId}-${p.item_id}`, 'completed')
     }
   }
 
