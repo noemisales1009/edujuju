@@ -1608,7 +1608,7 @@ async function loadCatalogo() {
 
   const [{ data: videos, error }, { data: artigos }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, youtube_url, description, ordem').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('artigos').select('id, titulo, descricao, imagem_url, ordem').eq('visivel', true).order('ordem', { ascending: true })
+    supabase.from('artigos').select('id, titulo, descricao, imagem_url, conteudo, conteudo_blocos, topics, ordem').eq('visivel', true).order('ordem', { ascending: true })
   ])
 
   const allItems = [
