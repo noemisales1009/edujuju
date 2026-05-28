@@ -3484,6 +3484,7 @@ function escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 // ============================================
@@ -4139,20 +4140,21 @@ async function loadAdminCertificados() {
 
   listEl.innerHTML = ''
   for (const u of users) {
-    const nome = u.name || u.email?.split('@')[0] || 'Usuário'
+    const nome = u.name?.trim() || u.email?.split('@')[0] || 'Usuário'
     const div = document.createElement('div')
-    div.className = 'admin-list-item'
-    div.style.cssText = 'padding:0.6rem 1rem'
-    div.innerHTML = `
-      <div class="ali-info" style="flex:1">
-        <h4 class="ali-title" style="font-size:0.9rem">${escHtml(nome)}</h4>
-        ${u.sector ? `<p class="ali-desc" style="font-size:0.75rem">${escHtml(u.sector)}</p>` : ''}
-      </div>
-      <button class="btn-outline" style="font-size:0.8rem;padding:0.35rem 0.9rem;white-space:nowrap"
-        onclick="gerarCertificado('${u.id}','${escHtml(nome)}')">
-        <span class="material-symbols-outlined" style="font-size:1rem">workspace_premium</span>
-        Gerar Certificado
-      </button>`
+    div.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;border:1px solid var(--outline-var);border-radius:var(--r-md);background:var(--surface-low);margin-bottom:0.375rem'
+    const info = document.createElement('div')
+    info.style.cssText = 'flex:1;min-width:0'
+    info.innerHTML = `<div style="font-size:0.85rem;font-weight:600;color:var(--on-surface);word-break:break-word;line-height:1.2">${escHtml(nome)}</div>${u.sector ? `<div style="font-size:0.72rem;color:var(--on-surface-var);margin-top:1px">${escHtml(u.sector)}</div>` : ''}`
+    const btn = document.createElement('button')
+    btn.title = 'Gerar Certificado'
+    btn.style.cssText = 'display:flex;align-items:center;justify-content:center;background:none;border:1px solid var(--outline-var);border-radius:6px;padding:0.3rem;cursor:pointer;flex-shrink:0;color:var(--primary);transition:background 0.15s'
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.1rem">workspace_premium</span>'
+    btn.addEventListener('mouseover', () => btn.style.background = 'var(--surface-mid)')
+    btn.addEventListener('mouseout', () => btn.style.background = 'none')
+    btn.addEventListener('click', () => gerarCertificado(u.id, nome))
+    div.appendChild(info)
+    div.appendChild(btn)
     listEl.appendChild(div)
   }
 }
