@@ -781,6 +781,7 @@ window.playSalaVideo = async function(id) {
     cachedRespostas = data || []
   }
   await renderSalaVideo(video, cachedRespostas)
+  updateGradeCard()
 }
 
 async function handleQuiz() {
