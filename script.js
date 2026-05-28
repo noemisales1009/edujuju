@@ -3339,7 +3339,7 @@ async function loadHome() {
 
       const medals = ['🥇', '🥈', '🥉', '4', '5']
       rankingEl.innerHTML = sorted.map((s, i) => `
-        <div class="home-rank-row${s.uid === currentUser.id ? ' home-rank-me' : ''}">
+        <div class="home-rank-row${currentUser && s.uid === currentUser.id ? ' home-rank-me' : ''}">
           <span class="home-rank-num">${medals[i]}</span>
           <span class="home-rank-name">${escHtml(uMap[s.uid] || '—')}</span>
           <span class="home-rank-nota">${s.avg}%</span>
