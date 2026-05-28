@@ -3805,9 +3805,6 @@ async function loadHome() {
     }
   }
 
-  // --- Certificado ---
-  const certWrap = document.getElementById('homeCertWrap')
-  if (certWrap) certWrap.style.display = (totalItems > 0 && completed === totalItems) ? '' : 'none'
 }
 
 // ============================================
