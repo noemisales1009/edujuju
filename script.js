@@ -653,9 +653,7 @@ async function renderSalaQuiz(videoId, cachedRespostas = null) {
     if (watchedBtn) {
       watchedBtn.onclick = () => {
         setVideoWatched(videoId)
-        watchedWrap.style.display = 'none'
-        quizCard.style.display = ''
-        updateNextBtnState()
+        renderSalaQuiz(videoId)
       }
     }
     updateNextBtnState()
@@ -3349,7 +3347,7 @@ async function loadHome() {
       const vid      = !isArtigo ? ytVideoId(startedItem.youtube_url) : null
       const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : (startedItem.imagem_url || null)
       window._openHomeItem = (id, tipo) => {
-        const item = allItems.find(i => i.id === id && i._tipo === tipo)
+        const item = allItems.find(i => String(i.id) === String(id) && i._tipo === tipo)
         if (item) (tipo === 'artigo' ? openArtigo(item) : openVideoSala(item))
       }
       continueCard.innerHTML = `
