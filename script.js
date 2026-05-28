@@ -614,26 +614,38 @@ async function renderSalaQuiz(videoId, cachedRespostas = null) {
         : Promise.resolve({ data: [] })
   ])
 
-  if (!questions?.length) {
+  const temQuiz     = questions?.length > 0
+  const jaAssistiu  = getVideoWatched(videoId) || getVideoProgress(videoId) === 'completed'
+  const watchedWrap = document.getElementById('videoWatchedWrap')
+  const watchedBtn  = document.getElementById('videoWatchedBtn')
+  const video       = salaVideos.find(v => v.id === videoId)
+
+  if (!temQuiz) {
     quizCard.style.display = 'none'
-    const ww = document.getElementById('videoWatchedWrap')
-    if (ww) ww.style.display = 'none'
-    const video = salaVideos.find(v => v.id === videoId)
     renderTextoAula(video?.texto_aula || null)
     if (getVideoProgress(videoId) === 'completed') {
+      if (watchedWrap) watchedWrap.style.display = 'none'
       renderConclusaoCard(videoId)
-    } else {
-      renderConcluirSemQuizBtn(videoId)
+      return
     }
+    // Sem quiz: botão confirma e conclui diretamente
+    if (watchedWrap) watchedWrap.style.display = ''
+    if (watchedBtn) {
+      watchedBtn.onclick = () => {
+        setVideoWatched(videoId)
+        watchedWrap.style.display = 'none'
+        setVideoProgress(videoId, 'completed')
+        setTimeout(() => checkTrilhaConcluidaEConfetti(videoId), 400)
+        renderConclusaoCard(videoId)
+        updateNextBtnState()
+      }
+    }
+    updateNextBtnState()
     return
   }
 
   renderTextoAula(null)
   _quizQuestions = questions
-
-  const jaAssistiu = getVideoWatched(videoId) || getVideoProgress(videoId) === 'completed'
-  const watchedWrap = document.getElementById('videoWatchedWrap')
-  const watchedBtn  = document.getElementById('videoWatchedBtn')
 
   if (!jaAssistiu) {
     quizCard.style.display = 'none'
