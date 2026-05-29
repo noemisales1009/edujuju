@@ -2176,7 +2176,7 @@ async function openAvaliacao(av) {
       localStorage.removeItem(`eduflow-av-${currentUser.id}-${av.id}`)
       await supabase.from('progresso_usuario')
         .update({ concluido: false })
-        .eq('user_id', currentUser.id).eq('item_id', av.id).eq('item_tipo', 'avaliacao')
+        .eq('user_id', currentUser.id).eq('item_id', String(av.id)).eq('item_tipo', 'avaliacao')
       openAvaliacao(av)
     }
     return
@@ -2238,13 +2238,19 @@ async function openAvaliacao(av) {
     }
   }
 
-  function mostrarResultado() {
+  async function mostrarResultado() {
     const pct = Math.round((acertos / questoes.length) * 100)
     localStorage.setItem(`eduflow-av-${currentUser.id}-${av.id}`, 'completed')
-    supabase.from('progresso_usuario').upsert(
-      { user_id: currentUser.id, item_id: av.id, item_tipo: 'avaliacao', concluido: true, nota_pct: pct },
+    // Usa String(av.id) para compatibilidade com item_id text/uuid no banco
+    const { data: savedData, error: errUpsert } = await supabase.from('progresso_usuario').upsert(
+      { user_id: currentUser.id, item_id: String(av.id), item_tipo: 'avaliacao', concluido: true, nota_pct: pct },
       { onConflict: 'user_id,item_id,item_tipo' }
-    )
+    ).select()
+    if (errUpsert) {
+      console.error('[Avaliação] Erro ao salvar nota:', errUpsert)
+    } else {
+      console.log('[Avaliação] Nota salva com sucesso:', pct + '%', savedData)
+    }
     conteudo.innerHTML = `
       <div style="text-align:center;padding:2rem">
         <span class="material-symbols-outlined icon-filled" style="font-size:3rem;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'}">
