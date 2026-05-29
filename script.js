@@ -2139,14 +2139,45 @@ async function openAvaliacao(av) {
 
   window.showPage('avaliacao')
 
-  const conteudo   = document.getElementById('avaliacaoConteudo')
+  const conteudo    = document.getElementById('avaliacaoConteudo')
   const jaConcluido = getAvaliacaoProgress(av.id) === 'completed'
 
   if (jaConcluido) {
-    conteudo.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--success)">
-      <span class="material-symbols-outlined icon-filled" style="font-size:3rem">check_circle</span>
-      <p style="font-weight:700;font-size:1.1rem;margin-top:0.5rem">Avaliação já concluída!</p>
+    // Verifica se tem nota salva no banco
+    const { data: progRow } = await supabase
+      .from('progresso_usuario')
+      .select('nota_pct')
+      .eq('user_id', currentUser.id)
+      .eq('item_id', av.id)
+      .eq('item_tipo', 'avaliacao')
+      .maybeSingle()
+
+    const notaSalva = progRow?.nota_pct
+    if (notaSalva !== null && notaSalva !== undefined) {
+      // Tem nota — mostra resultado sem refazer
+      const cor = notaSalva >= 70 ? 'var(--success)' : notaSalva >= 50 ? 'var(--warning)' : 'var(--error)'
+      conteudo.innerHTML = `<div style="text-align:center;padding:2rem">
+        <span class="material-symbols-outlined icon-filled" style="font-size:3rem;color:${cor}">check_circle</span>
+        <p style="font-weight:700;font-size:1.1rem;margin-top:0.5rem;color:var(--on-surface)">Avaliação concluída!</p>
+        <p style="font-size:2rem;font-weight:800;color:${cor};margin:0.5rem 0">${notaSalva}%</p>
+        <p style="color:var(--text-secondary);font-size:0.85rem">${notaSalva >= 70 ? 'Parabéns! Ótimo desempenho.' : notaSalva >= 50 ? 'Bom esforço! Continue estudando.' : 'Continue se dedicando!'}</p>
+      </div>`
+      return
+    }
+    // Sem nota salva — permite refazer para registrar
+    conteudo.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-secondary)">
+      <span class="material-symbols-outlined" style="font-size:2rem">assignment_return</span>
+      <p style="margin:0.5rem 0;font-weight:600;color:var(--on-surface)">Sua nota ainda não foi registrada.</p>
+      <p style="font-size:0.85rem;margin-bottom:1rem">Refaça a avaliação para que sua nota apareça nos relatórios.</p>
+      <button class="btn-primary" id="btnRefazerAv" style="padding:0.6rem 1.5rem">Refazer Avaliação</button>
     </div>`
+    document.getElementById('btnRefazerAv').onclick = async () => {
+      localStorage.removeItem(`eduflow-av-${currentUser.id}-${av.id}`)
+      await supabase.from('progresso_usuario')
+        .update({ concluido: false })
+        .eq('user_id', currentUser.id).eq('item_id', av.id).eq('item_tipo', 'avaliacao')
+      openAvaliacao(av)
+    }
     return
   }
 
