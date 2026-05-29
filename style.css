@@ -556,7 +556,7 @@ ul { list-style: none; }
 .card-done:hover { opacity: 1; }
 
 .card-img {
-  height: 11rem;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   position: relative;
   background: var(--surface-dim);
@@ -1473,6 +1473,19 @@ ul { list-style: none; }
 }
 .modal-overlay.open { display: flex; animation: fadeIn 0.18s ease; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Toast de notificação */
+.app-toast {
+  position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%);
+  background: var(--on-surface); color: var(--surface); border-radius: var(--r-lg);
+  padding: 0.75rem 1.25rem; font-size: 0.875rem; font-weight: 500;
+  display: flex; align-items: center; gap: 0.5rem;
+  box-shadow: var(--shadow-md); z-index: 9999; white-space: nowrap;
+  animation: toastIn 0.25s ease;
+  max-width: 90vw; white-space: normal; text-align: center;
+}
+.app-toast.warning { background: #f59e0b; color: #fff; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .pdf-spinner {
@@ -1928,7 +1941,7 @@ ul { list-style: none; }
 }
 
 .ali-thumb {
-  width: 8rem; height: 5rem;
+  width: 9rem; height: 5.0625rem;
   border-radius: var(--r-md);
   overflow: hidden;
   flex-shrink: 0;

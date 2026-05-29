@@ -449,8 +449,8 @@
           <div style="width:2rem"></div>
         </div>
         <div style="max-width:760px;margin:0 auto;padding:1.5rem 1rem 4rem">
-          <div id="avaliacaoImagemWrap" style="display:none;margin-bottom:1.5rem;border-radius:12px;overflow:hidden;max-height:360px">
-            <img id="avaliacaoImagemEl" src="" alt="" style="width:100%;height:100%;object-fit:cover">
+          <div id="avaliacaoImagemWrap" style="display:none;margin-bottom:1.5rem;text-align:center">
+            <img id="avaliacaoImagemEl" src="" alt="" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:12px">
           </div>
           <h1 id="avaliacaoTituloEl" style="font-size:1.6rem;margin-bottom:0.5rem"></h1>
           <p id="avaliacaoDescricaoEl" style="color:var(--text-secondary);margin-bottom:2rem"></p>
@@ -825,7 +825,8 @@
             </div>
             <div class="form-group">
               <label for="docTopics">Trilha (opcional)</label>
-              <input type="text" id="docTopics" placeholder="Ex: AULA 1 - IRAS">
+              <select id="docTopics" class="trilha-select"></select>
+              <input type="text" id="docTopicsNova" class="trilha-nova-input" placeholder="Nome da nova trilha" style="display:none;margin-top:0.5rem">
             </div>
             <div class="form-group">
               <label for="docFile">Arquivo PDF</label>
@@ -871,8 +872,9 @@
               </div>
             </div>
             <div class="form-group">
-              <label>Tópicos</label>
-              <input type="text" id="videoTopics" placeholder="Ex: AULA 1 - IRAS">
+              <label>Trilha</label>
+              <select id="videoTopics" class="trilha-select"></select>
+              <input type="text" id="videoTopicsNova" class="trilha-nova-input" placeholder="Nome da nova trilha" style="display:none;margin-top:0.5rem">
             </div>
             <div class="form-group">
               <label>Texto da Aula <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional — aparece no lugar do quiz)</span></label>
@@ -908,8 +910,9 @@
               <input type="text" id="artigoDescricao" placeholder="Uma frase resumindo o artigo">
             </div>
             <div class="form-group">
-              <label>Tópicos</label>
-              <input type="text" id="artigoTopics" placeholder="Ex: AULA 1 - IRAS">
+              <label>Trilha</label>
+              <select id="artigoTopics" class="trilha-select"></select>
+              <input type="text" id="artigoTopicsNova" class="trilha-nova-input" placeholder="Nome da nova trilha" style="display:none;margin-top:0.5rem">
             </div>
             <div class="form-group">
               <label>Imagem de capa <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
@@ -965,8 +968,9 @@
               <textarea id="avaliacaoDescricao" placeholder="Instruções ou contexto da avaliação" rows="3"></textarea>
             </div>
             <div class="form-group">
-              <label>Tópico / Trilha <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
-              <input type="text" id="avaliacaoTopics" placeholder="Ex: AULA 1 - IRAS">
+              <label>Trilha <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
+              <select id="avaliacaoTopics" class="trilha-select"></select>
+              <input type="text" id="avaliacaoTopicsNova" class="trilha-nova-input" placeholder="Nome da nova trilha" style="display:none;margin-top:0.5rem">
             </div>
             <div class="form-group">
               <label>Imagem de capa <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>

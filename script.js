@@ -1492,6 +1492,7 @@ document.getElementById('btnAddDoc').addEventListener('click', () => {
   document.getElementById('docFile').closest('.form-group').style.display = ''
   document.getElementById('formDoc').reset()
   document.getElementById('docError').textContent = ''
+  fillTrilhaDropdown('docTopics', 'docTopicsNova', '')
   modal.classList.add('open')
 })
 document.getElementById('closeModalDoc').addEventListener('click', () => document.getElementById('modalDoc').classList.remove('open'))
@@ -1504,7 +1505,7 @@ document.getElementById('formDoc').addEventListener('submit', async e => {
   const title   = document.getElementById('docTitle').value.trim()
   const desc    = document.getElementById('docDesc').value.trim()
   const cat     = document.getElementById('docCategory').value.trim()
-  const topics  = document.getElementById('docTopics').value.trim()
+  const topics  = getTrilhaValue('docTopics', 'docTopicsNova')
   const modal   = document.getElementById('modalDoc')
   const editId  = modal._editId || null
 
@@ -1603,8 +1604,8 @@ function editDoc(id, title, description, category, topics) {
   document.getElementById('docTitle').value    = title
   document.getElementById('docDesc').value     = description
   document.getElementById('docCategory').value = category
-  document.getElementById('docTopics').value   = topics || ''
   document.getElementById('docError').textContent = ''
+  fillTrilhaDropdown('docTopics', 'docTopicsNova', topics || '')
 
   titleEl.textContent  = 'Editar Documento'
   saveBtn.textContent  = 'Salvar Alterações'
@@ -1910,7 +1911,7 @@ function renderAvaliacaoAdminCard(a, idx, total) {
   div.className = 'admin-list-item'
   div.style.opacity = oculto ? '0.55' : '1'
   div.innerHTML = `
-    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/cover no-repeat` : ''}">
+    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/contain no-repeat;background-color:var(--surface-dim)` : ''}">
       ${!a.imagem_url ? '<span class="material-symbols-outlined">assignment</span>' : ''}
     </div>
     <div class="ali-info">
@@ -2021,12 +2022,12 @@ async function openAvaliacaoModal(av = null) {
   document.getElementById('avaliacaoImagemPreview').style.display = 'none'
   document.getElementById('modalAvaliacaoTitle').textContent  = av ? 'Editar Avaliação' : 'Nova Avaliação'
   document.getElementById('saveAvaliacaoBtn').textContent     = av ? 'Salvar Alterações' : 'Salvar Avaliação'
+  fillTrilhaDropdown('avaliacaoTopics', 'avaliacaoTopicsNova', av?.topics || '')
   if (av) {
     editingAvaliacaoId  = av.id
     _avaliacaoImagemUrl = av.imagem_url || null
     document.getElementById('avaliacaoTitulo').value    = av.titulo || ''
     document.getElementById('avaliacaoDescricao').value = av.descricao || ''
-    document.getElementById('avaliacaoTopics').value    = av.topics || ''
     document.getElementById('avaliacaoVisivel').checked = av.visivel !== false
     if (av.imagem_url) {
       const preview = document.getElementById('avaliacaoImagemPreview')
@@ -2073,7 +2074,7 @@ document.getElementById('formAvaliacao')?.addEventListener('submit', async e => 
   const errorEl   = document.getElementById('avaliacaoError')
   const titulo    = document.getElementById('avaliacaoTitulo').value.trim()
   const descricao = document.getElementById('avaliacaoDescricao').value.trim()
-  const topics    = document.getElementById('avaliacaoTopics').value.trim()
+  const topics    = getTrilhaValue('avaliacaoTopics', 'avaliacaoTopicsNova')
   const visivel   = document.getElementById('avaliacaoVisivel').checked
   const file      = document.getElementById('avaliacaoImagemFile').files[0]
   if (!titulo) { errorEl.textContent = 'Preencha o título.'; return }
@@ -2174,7 +2175,8 @@ async function openAvaliacao(av) {
         <button class="btn-primary" id="avConfirm" style="margin-top:1rem;width:100%">Confirmar Resposta</button>
       </div>`
 
-    document.getElementById('avConfirm').addEventListener('click', () => {
+    const btn = document.getElementById('avConfirm')
+    btn.onclick = () => {
       const chosen = conteudo.querySelector('input[name="av-quiz"]:checked')
       if (!chosen) return
       const oi = +chosen.value
@@ -2187,13 +2189,17 @@ async function openAvaliacao(av) {
       const fb = document.getElementById('avFeedback')
       fb.className = `quiz-feedback ${isCorrect ? 'ok' : 'err'}`
       fb.innerHTML = isCorrect ? '<strong>✓ Correto!</strong>' : '<strong>✗ Incorreta.</strong> A correta está em verde.'
-      const btn = document.getElementById('avConfirm')
-      btn.textContent = qIdx < questoes.length - 1 ? 'Próxima' : 'Ver Resultado'
+      btn.textContent = qIdx < questoes.length - 1 ? 'Próxima ›' : 'Ver Resultado'
       btn.onclick = () => {
-        if (qIdx < questoes.length - 1) { qIdx++; renderQ() }
-        else mostrarResultado()
+        if (qIdx < questoes.length - 1) {
+          qIdx++
+          renderQ()
+          document.querySelector('#page-avaliacao .main-content, #page-avaliacao')?.scrollTo({ top: 0, behavior: 'smooth' })
+        } else {
+          mostrarResultado()
+        }
       }
-    })
+    }
   }
 
   function mostrarResultado() {
@@ -2260,7 +2266,7 @@ function renderArtigoAdminCard(a, idx, total) {
   div.className = 'admin-list-item'
   div.style.opacity = oculto ? '0.55' : '1'
   div.innerHTML = `
-    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/cover no-repeat` : ''}">
+    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/contain no-repeat;background-color:var(--surface-dim)` : ''}">
       ${!a.imagem_url ? '<span class="material-symbols-outlined">article</span>' : ''}
     </div>
     <div class="ali-info">
@@ -2396,13 +2402,13 @@ async function openArtigoModal(artigo = null) {
   document.getElementById('artigoImagemPreview').style.display = 'none'
   document.getElementById('modalArtigoTitle').textContent  = artigo ? 'Editar Artigo' : 'Novo Artigo'
   document.getElementById('saveArtigoBtn').textContent     = artigo ? 'Salvar Alterações' : 'Salvar Artigo'
+  fillTrilhaDropdown('artigoTopics', 'artigoTopicsNova', artigo?.topics || '')
 
   if (artigo) {
     editingArtigoId  = artigo.id
     _artigoImagemUrl = artigo.imagem_url || null
     document.getElementById('artigoTitulo').value    = artigo.titulo || ''
     document.getElementById('artigoDescricao').value = artigo.descricao || ''
-    document.getElementById('artigoTopics').value    = artigo.topics || ''
     document.getElementById('artigoVisivel').checked = artigo.visivel !== false
     const labelText = document.getElementById('artigoImagemLabelText')
     if (artigo.imagem_url) {
@@ -2479,7 +2485,7 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
   const errorEl   = document.getElementById('artigoError')
   const titulo    = document.getElementById('artigoTitulo').value.trim()
   const descricao = document.getElementById('artigoDescricao').value.trim()
-  const topics    = document.getElementById('artigoTopics').value.trim()
+  const topics    = getTrilhaValue('artigoTopics', 'artigoTopicsNova')
   const visivel   = document.getElementById('artigoVisivel').checked
   const fileInput = document.getElementById('artigoImagemFile')
   const file      = fileInput.files[0]
@@ -2671,6 +2677,8 @@ function openVideoModal(video = null) {
   document.getElementById('videoError').textContent = ''
   document.getElementById('saveVideoBtn') && (document.getElementById('saveVideoBtn').textContent = video ? 'Salvar Alterações' : 'Salvar Vídeo')
 
+  fillTrilhaDropdown('videoTopics', 'videoTopicsNova', video?.topics || '')
+
   if (video) {
     editingVideoId = video.id
     document.getElementById('videoTitle').value      = video.title || ''
@@ -2678,7 +2686,6 @@ function openVideoModal(video = null) {
     document.getElementById('videoUrl').value        = video.youtube_url || ''
     document.getElementById('videoDuracaoMin').value = video.duracao_seg ? Math.floor(video.duracao_seg / 60) : ''
     document.getElementById('videoDuracaoSeg').value = video.duracao_seg ? video.duracao_seg % 60 : ''
-    document.getElementById('videoTopics').value     = video.topics || ''
     document.getElementById('videoTextoAula').value  = video.texto_aula || ''
     document.getElementById('videoVisivel').checked  = video.visivel !== false
 
@@ -2718,7 +2725,7 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
   const duracaoMin = parseInt(document.getElementById('videoDuracaoMin').value) || 0
   const duracaoSeg = parseInt(document.getElementById('videoDuracaoSeg').value) || 0
   const duracao    = (duracaoMin * 60 + duracaoSeg) || null
-  const topics     = document.getElementById('videoTopics').value.trim()
+  const topics     = getTrilhaValue('videoTopics', 'videoTopicsNova')
   const textoAula  = document.getElementById('videoTextoAula').value.trim()
   const visivel    = document.getElementById('videoVisivel').checked
 
@@ -3484,6 +3491,63 @@ function ytEmbedUrl(url) {
   return id ? `https://www.youtube.com/embed/${id}` : ''
 }
 
+// ============================================
+// DROPDOWN DE TRILHAS
+// ============================================
+async function fillTrilhaDropdown(selectId, novaInputId, currentValue = '') {
+  const sel      = document.getElementById(selectId)
+  const novaInput = document.getElementById(novaInputId)
+  if (!sel) return
+
+  const [{ data: vids }, { data: arts }] = await Promise.all([
+    supabase.from('videos').select('topics').not('topics', 'is', null),
+    supabase.from('artigos').select('topics').not('topics', 'is', null)
+  ])
+  const topicsSet = new Set()
+  ;(vids || []).forEach(v => v.topics?.trim() && topicsSet.add(v.topics.trim()))
+  ;(arts || []).forEach(a => a.topics?.trim() && topicsSet.add(a.topics.trim()))
+  const topicsList = Array.from(topicsSet).sort()
+
+  sel.innerHTML =
+    `<option value="">-- Sem trilha --</option>` +
+    topicsList.map(t => `<option value="${escHtml(t)}">${escHtml(t)}</option>`).join('') +
+    `<option value="__nova__">✏️ Nova trilha...</option>`
+
+  if (currentValue && topicsSet.has(currentValue)) {
+    sel.value = currentValue
+  } else if (currentValue) {
+    sel.value = '__nova__'
+    if (novaInput) { novaInput.style.display = ''; novaInput.value = currentValue }
+  } else {
+    sel.value = ''
+  }
+
+  sel.onchange = () => {
+    if (!novaInput) return
+    novaInput.style.display = sel.value === '__nova__' ? '' : 'none'
+    if (sel.value !== '__nova__') novaInput.value = ''
+  }
+}
+
+function getTrilhaValue(selectId, novaInputId) {
+  const sel = document.getElementById(selectId)
+  if (!sel) return ''
+  if (sel.value === '__nova__') return (document.getElementById(novaInputId)?.value || '').trim()
+  return sel.value.trim()
+}
+
+let _toastTimer = null
+function showToast(msg, type = '') {
+  const existing = document.querySelector('.app-toast')
+  if (existing) existing.remove()
+  clearTimeout(_toastTimer)
+  const el = document.createElement('div')
+  el.className = 'app-toast' + (type ? ' ' + type : '')
+  el.textContent = msg
+  document.body.appendChild(el)
+  _toastTimer = setTimeout(() => el.remove(), 3500)
+}
+
 function escHtml(str) {
   if (!str) return ''
   return String(str)
@@ -3770,7 +3834,8 @@ async function loadHome() {
       trilhasMap[key].push({ ...a, _tipo: 'artigo' })
     }
     trilhasGrid.innerHTML = ''
-    for (const [trilha, itens] of Object.entries(trilhasMap)) {
+    const trilhasEntries = Object.entries(trilhasMap)
+    trilhasEntries.forEach(([trilha, itens], idx) => {
       const done  = itens.filter(i =>
         i._tipo === 'artigo' ? getArtigoProgress(i.id) === 'completed' : getVideoProgress(i.id) === 'completed'
       ).length
@@ -3791,9 +3856,34 @@ async function loadHome() {
           </div>
           <small style="color:var(--text-secondary)">${done}/${total} item${total !== 1 ? 's' : ''}</small>
         </div>`
-      card.addEventListener('click', () => window.showPage('catalogo'))
+
+      card.addEventListener('click', async () => {
+        // Verifica se a trilha anterior foi concluída
+        if (idx > 0) {
+          const [prevNome, prevItens] = trilhasEntries[idx - 1]
+          const prevDone = prevItens.filter(i =>
+            i._tipo === 'artigo' ? getArtigoProgress(i.id) === 'completed' : getVideoProgress(i.id) === 'completed'
+          ).length
+          if (prevDone < prevItens.length) {
+            showToast(`⚠️ Conclua "${prevNome}" antes de continuar.`, 'warning')
+            return
+          }
+        }
+        // Abre o primeiro item não concluído (ou o primeiro, se todos concluídos)
+        const nextItem = itens.find(i =>
+          (i._tipo === 'artigo' ? getArtigoProgress(i.id) : getVideoProgress(i.id)) !== 'completed'
+        ) || itens[0]
+
+        if (nextItem._tipo === 'video') {
+          openVideoSala(nextItem)
+        } else if (nextItem._tipo === 'artigo') {
+          const { data } = await supabase.from('artigos').select('*').eq('id', nextItem.id).single()
+          if (data) openArtigo(data)
+        }
+      })
+
       trilhasGrid.appendChild(card)
-    }
+    })
   }
 
   // --- Ranking top 5 ---
