@@ -1188,6 +1188,73 @@ async function loadPerfilConquistas() {
       </div>`
   }).join('')
 
+  // ── Artigos ──
+  const artigosGrid = document.getElementById('artigosGrid')
+  const artigosCounter = document.getElementById('artigosCounter')
+  if (artigosGrid) {
+    const [{ data: artigos }, { data: progArtigos }] = await Promise.all([
+      supabase.from('artigos').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
+      supabase.from('progresso_usuario').select('item_id').eq('user_id', currentUser.id).eq('item_tipo', 'artigo').eq('concluido', true)
+    ])
+    const lidos = new Set((progArtigos || []).map(p => p.item_id))
+    const total = (artigos || []).length
+    const concluidosA = (artigos || []).filter(a => lidos.has(String(a.id))).length
+    if (artigosCounter) artigosCounter.textContent = `${concluidosA} de ${total}`
+    if (!total) {
+      artigosGrid.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary);grid-column:1/-1">Nenhum artigo disponível.</p>'
+    } else {
+      artigosGrid.innerHTML = (artigos || []).map(a => {
+        const done = lidos.has(String(a.id))
+        const level = done ? 'gold' : 'locked'
+        const icon = done ? 'menu_book' : 'lock'
+        return `
+          <div class="ach-card ${level}">
+            <div class="ach-badge ${level}"><span class="material-symbols-outlined icon-filled">${icon}</span></div>
+            <div class="ach-name">${escHtml(a.titulo || '—')}</div>
+            <span class="ach-nota ${done ? level : 'none'}">${done ? 'Lido ✓' : 'Não lido'}</span>
+            <div class="ach-prog-wrap">
+              <div class="ach-prog-label"><span>${escHtml(a.topics || '—')}</span></div>
+            </div>
+          </div>`
+      }).join('')
+    }
+  }
+
+  // ── Avaliações ──
+  const avaliacoesGrid = document.getElementById('avaliacoesGrid')
+  const avaliacoesCounter = document.getElementById('avaliacoesCounter')
+  if (avaliacoesGrid) {
+    const [{ data: avaliacoes }, { data: progAv }] = await Promise.all([
+      supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
+      supabase.from('progresso_usuario').select('item_id, nota_pct').eq('user_id', currentUser.id).eq('item_tipo', 'avaliacao').eq('concluido', true)
+    ])
+    const notaAvMap = {}
+    for (const p of (progAv || [])) notaAvMap[p.item_id] = Number(p.nota_pct)
+    const total = (avaliacoes || []).length
+    const concluidosAv = (avaliacoes || []).filter(a => notaAvMap[String(a.id)] !== undefined).length
+    if (avaliacoesCounter) avaliacoesCounter.textContent = `${concluidosAv} de ${total}`
+    if (!total) {
+      avaliacoesGrid.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary);grid-column:1/-1">Nenhuma avaliação disponível.</p>'
+    } else {
+      avaliacoesGrid.innerHTML = (avaliacoes || []).map(a => {
+        const nota = notaAvMap[String(a.id)]
+        const done = nota !== undefined
+        const level = !done ? 'locked' : nota >= 90 ? 'gold' : nota >= 70 ? 'silver' : 'bronze'
+        const icon  = !done ? 'lock' : 'assignment_turned_in'
+        const label = !done ? 'Não realizada' : nota >= 90 ? '🥇 Ouro' : nota >= 70 ? '🥈 Prata' : '🥉 Bronze'
+        return `
+          <div class="ach-card ${level}">
+            <div class="ach-badge ${level}"><span class="material-symbols-outlined icon-filled">${icon}</span></div>
+            <div class="ach-name">${escHtml(a.titulo || '—')}</div>
+            <span class="ach-nota ${done ? level : 'none'}">${done ? nota + '%' : '—'}</span>
+            <div class="ach-prog-wrap">
+              <div class="ach-prog-label"><span>${label}</span><span>${escHtml(a.topics || '—')}</span></div>
+            </div>
+          </div>`
+      }).join('')
+    }
+  }
+
 }
 
 // ============================================
@@ -2056,6 +2123,7 @@ async function openAvaliacaoModal(av = null) {
     _avaliacaoImagemUrl = av.imagem_url || null
     document.getElementById('avaliacaoTitulo').value    = av.titulo || ''
     document.getElementById('avaliacaoDescricao').value = av.descricao || ''
+    document.getElementById('avaliacaoCategoria').value = av.categoria || ''
     document.getElementById('avaliacaoVisivel').checked = av.visivel !== false
     if (av.imagem_url) {
       const preview = document.getElementById('avaliacaoImagemPreview')
@@ -2103,6 +2171,7 @@ document.getElementById('formAvaliacao')?.addEventListener('submit', async e => 
   const titulo    = document.getElementById('avaliacaoTitulo').value.trim()
   const descricao = document.getElementById('avaliacaoDescricao').value.trim()
   const topics    = getTrilhaValue('avaliacaoTopics', 'avaliacaoTopicsNova')
+  const categoria = document.getElementById('avaliacaoCategoria').value.trim()
   const visivel   = document.getElementById('avaliacaoVisivel').checked
   const file      = document.getElementById('avaliacaoImagemFile').files[0]
   if (!titulo) { errorEl.textContent = 'Preencha o título.'; return }
@@ -2117,7 +2186,7 @@ document.getElementById('formAvaliacao')?.addEventListener('submit', async e => 
     const { data: urlData } = supabase.storage.from('imagens').getPublicUrl(path)
     imagemUrl = urlData.publicUrl
   }
-  const payload = { titulo, descricao: descricao || null, topics: topics || null, imagem_url: imagemUrl || null, visivel }
+  const payload = { titulo, descricao: descricao || null, topics: topics || null, categoria: categoria || null, imagem_url: imagemUrl || null, visivel }
   let savedId = editingAvaliacaoId
   if (editingAvaliacaoId) {
     const { error } = await supabase.from('avaliacoes').update(payload).eq('id', editingAvaliacaoId)
@@ -2475,6 +2544,7 @@ async function openArtigoModal(artigo = null) {
     _artigoImagemUrl = artigo.imagem_url || null
     document.getElementById('artigoTitulo').value    = artigo.titulo || ''
     document.getElementById('artigoDescricao').value = artigo.descricao || ''
+    document.getElementById('artigoCategoria').value = artigo.categoria || ''
     document.getElementById('artigoVisivel').checked = artigo.visivel !== false
     const labelText = document.getElementById('artigoImagemLabelText')
     if (artigo.imagem_url) {
@@ -2552,6 +2622,7 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
   const titulo    = document.getElementById('artigoTitulo').value.trim()
   const descricao = document.getElementById('artigoDescricao').value.trim()
   const topics    = getTrilhaValue('artigoTopics', 'artigoTopicsNova')
+  const categoria = document.getElementById('artigoCategoria').value.trim()
   const visivel   = document.getElementById('artigoVisivel').checked
   const fileInput = document.getElementById('artigoImagemFile')
   const file      = fileInput.files[0]
@@ -2586,7 +2657,7 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
     imagemUrl = urlData.publicUrl
   }
 
-  const payload = { titulo, descricao: descricao || null, topics: topics || null, imagem_url: imagemUrl || null, conteudo, conteudo_blocos: conteudoBlocos, visivel }
+  const payload = { titulo, descricao: descricao || null, topics: topics || null, categoria: categoria || null, imagem_url: imagemUrl || null, conteudo, conteudo_blocos: conteudoBlocos, visivel }
 
   let savedId = editingArtigoId
   if (editingArtigoId) {
@@ -2753,6 +2824,7 @@ function openVideoModal(video = null) {
     document.getElementById('videoDuracaoMin').value = video.duracao_seg ? Math.floor(video.duracao_seg / 60) : ''
     document.getElementById('videoDuracaoSeg').value = video.duracao_seg ? video.duracao_seg % 60 : ''
     document.getElementById('videoTextoAula').value  = video.texto_aula || ''
+    document.getElementById('videoCategoria').value  = video.categoria || ''
     document.getElementById('videoVisivel').checked  = video.visivel !== false
 
     const embedUrl = ytEmbedUrl(video.youtube_url)
@@ -2792,6 +2864,7 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
   const duracaoSeg = parseInt(document.getElementById('videoDuracaoSeg').value) || 0
   const duracao    = (duracaoMin * 60 + duracaoSeg) || null
   const topics     = getTrilhaValue('videoTopics', 'videoTopicsNova')
+  const categoria  = document.getElementById('videoCategoria').value.trim()
   const textoAula  = document.getElementById('videoTextoAula').value.trim()
   const visivel    = document.getElementById('videoVisivel').checked
 
@@ -2803,7 +2876,7 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
   setLoading(btn, true, 'Salvando...')
   errorEl.textContent = ''
 
-  const payload = { title, description: desc || null, youtube_url: url, duracao_seg: duracao, topics: topics || null, texto_aula: textoAula || null, visivel }
+  const payload = { title, description: desc || null, youtube_url: url, duracao_seg: duracao, topics: topics || null, categoria: categoria || null, texto_aula: textoAula || null, visivel }
 
   let result
   try {
@@ -3851,9 +3924,9 @@ async function loadHome() {
   const userId = currentUser.id
 
   const [{ data: videos }, { data: artigos }, { data: avaliacoes }] = await Promise.all([
-    supabase.from('videos').select('id, title, topics, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('artigos').select('id, titulo, descricao, imagem_url, topics').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics').eq('visivel', true).order('ordem', { ascending: true })
+    supabase.from('videos').select('id, title, topics, categoria, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('artigos').select('id, titulo, descricao, imagem_url, topics, categoria').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics, categoria').eq('visivel', true).order('ordem', { ascending: true })
   ])
 
   const allVideos     = videos     || []
@@ -3950,19 +4023,19 @@ async function loadHome() {
   if (trilhasGrid) {
     const trilhasMap = {}
     for (const v of allVideos) {
-      const key = v.topics?.trim() || v.title
+      const key = v.categoria?.trim() || v.topics?.trim() || v.title
       if (!trilhasMap[key]) trilhasMap[key] = []
       trilhasMap[key].push({ ...v, _tipo: 'video' })
     }
     for (const a of allArtigos) {
-      if (!a.topics?.trim()) continue
-      const key = a.topics.trim()
+      const key = a.categoria?.trim() || a.topics?.trim()
+      if (!key) continue
       if (!trilhasMap[key]) trilhasMap[key] = []
       trilhasMap[key].push({ ...a, _tipo: 'artigo' })
     }
     for (const a of allAvaliacoes) {
-      if (!a.topics?.trim()) continue
-      const key = a.topics.trim()
+      const key = a.categoria?.trim() || a.topics?.trim()
+      if (!key) continue
       if (!trilhasMap[key]) trilhasMap[key] = []
       trilhasMap[key].push({ ...a, _tipo: 'avaliacao' })
     }

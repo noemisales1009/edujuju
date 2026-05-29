@@ -897,6 +897,10 @@
               </div>
             </div>
             <div class="form-group">
+              <label>Módulo <span style="font-size:0.8rem;color:var(--text-secondary)">(agrupa na home — ex: IRAS)</span></label>
+              <input type="text" id="videoCategoria" placeholder="Ex: IRAS, Segurança do Paciente..." style="margin-bottom:0.5rem">
+            </div>
+            <div class="form-group">
               <label>Trilha</label>
               <select id="videoTopics" class="trilha-select"></select>
               <input type="text" id="videoTopicsNova" class="trilha-nova-input" placeholder="Nome da nova trilha" style="display:none;margin-top:0.5rem">
@@ -933,6 +937,10 @@
             <div class="form-group">
               <label>Descrição curta</label>
               <input type="text" id="artigoDescricao" placeholder="Uma frase resumindo o artigo">
+            </div>
+            <div class="form-group">
+              <label>Módulo <span style="font-size:0.8rem;color:var(--text-secondary)">(agrupa na home — ex: IRAS)</span></label>
+              <input type="text" id="artigoCategoria" placeholder="Ex: IRAS, Segurança do Paciente...">
             </div>
             <div class="form-group">
               <label>Trilha</label>
@@ -991,6 +999,10 @@
             <div class="form-group">
               <label>Descrição / Instruções</label>
               <textarea id="avaliacaoDescricao" placeholder="Instruções ou contexto da avaliação" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Módulo <span style="font-size:0.8rem;color:var(--text-secondary)">(agrupa na home — ex: IRAS)</span></label>
+              <input type="text" id="avaliacaoCategoria" placeholder="Ex: IRAS, Segurança do Paciente...">
             </div>
             <div class="form-group">
               <label>Trilha <span style="font-size:0.8rem;color:var(--text-secondary)">(opcional)</span></label>
@@ -1171,6 +1183,28 @@
                 <span class="achievements-counter" id="achievementsCounter">—</span>
               </div>
               <div class="achievements-grid" id="achievementsGrid">
+                <div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando...</p></div>
+              </div>
+            </div>
+
+            <!-- Artigos -->
+            <div style="margin-top:1.5rem">
+              <div class="achievements-header">
+                <h3 class="section-heading" style="margin-bottom:0">Artigos</h3>
+                <span class="achievements-counter" id="artigosCounter">—</span>
+              </div>
+              <div class="achievements-grid" id="artigosGrid">
+                <div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando...</p></div>
+              </div>
+            </div>
+
+            <!-- Avaliações -->
+            <div style="margin-top:1.5rem">
+              <div class="achievements-header">
+                <h3 class="section-heading" style="margin-bottom:0">Avaliações</h3>
+                <span class="achievements-counter" id="avaliacoesCounter">—</span>
+              </div>
+              <div class="achievements-grid" id="avaliacoesGrid">
                 <div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando...</p></div>
               </div>
             </div>
