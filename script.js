@@ -16,15 +16,19 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       supabase.from('registro_acesso').insert({ user_id: currentUser.id })
         .then(({ error }) => { if (error) console.warn('[Auth] registro_acesso:', error) })
     }
-    supabase.from('users').upsert({
-      id: currentUser.id,
-      email: currentUser.email,
-      name: meta.name || '',
-      sector: meta.sector || '',
-      role: meta.role || '',
-      access_level: 'geral'
-    }, { onConflict: 'id', ignoreDuplicates: true })
-      .then(({ error }) => { if (error) console.warn('[Auth] upsert users:', error) })
+    // Salva dados do cadastro se ainda não existirem no perfil
+    supabase.from('users')
+      .select('name, sector, role')
+      .eq('id', currentUser.id)
+      .maybeSingle()
+      .then(({ data: existing }) => {
+        const payload = { id: currentUser.id, email: currentUser.email, access_level: 'geral' }
+        if (!existing?.name    && meta.name)   payload.name   = meta.name
+        if (!existing?.sector  && meta.sector) payload.sector = meta.sector
+        if (!existing?.role    && meta.role)   payload.role   = meta.role
+        return supabase.from('users').upsert(payload, { onConflict: 'id' })
+      })
+      .then(({ error } = {}) => { if (error) console.warn('[Auth] upsert users:', error) })
     applyCachedProfile(currentUser.id)
     showApp()
     try { await loadProfile() } catch (e) { console.warn('[Auth] loadProfile error:', e) }
