@@ -3052,14 +3052,20 @@ async function loadReports() {
     </div>`
   }
 
-  const tabelaCard = (icon, titulo, conteudo) => `
+  let _accId = 0
+  const tabelaCard = (icon, titulo, conteudo) => {
+    const id = `acc-rpt-${_accId++}`
+    return `
     <div style="grid-column:1/-1;background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-sm)">
-      <div style="display:flex;align-items:center;gap:0.75rem;padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface)">
+      <button onclick="(function(btn){const b=document.getElementById('${id}');const open=b.style.display!=='none';b.style.display=open?'none':'block';btn.querySelector('.rpt-chevron').textContent=open?'expand_more':'expand_less';})(this)"
+        style="width:100%;display:flex;align-items:center;gap:0.75rem;padding:0.875rem 1.25rem;background:var(--surface);border:none;cursor:pointer;text-align:left">
         <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.2rem">${icon}</span>
-        <span style="font-size:0.9rem;font-weight:600;color:var(--text-primary)">${titulo}</span>
-      </div>
-      <div class="resp-table-wrap" style="overflow-x:auto">${conteudo}</div>
+        <span style="font-size:0.9rem;font-weight:600;color:var(--text-primary);flex:1">${titulo}</span>
+        <span class="material-symbols-outlined rpt-chevron" style="color:var(--text-secondary);font-size:1.2rem">expand_more</span>
+      </button>
+      <div id="${id}" style="display:none;overflow-x:auto">${conteudo}</div>
     </div>`
+  }
 
   const semDados = cols => `<table class="resp-table" style="width:100%;border-collapse:collapse">
     <tbody><tr><td colspan="${cols}" style="${tdS};text-align:center;padding:2rem">
