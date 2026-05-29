@@ -33,6 +33,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     applyCachedProfile(currentUser.id)
     showApp()
     try { await loadProfile() } catch (e) { console.warn('[Auth] loadProfile error:', e) }
+    logAudit('login', 'Entrou na plataforma')
   } else {
     currentUser = null
     showLoginScreen()
@@ -43,6 +44,17 @@ function showApp() {
   document.getElementById('loginScreen').style.display = 'none'
   document.getElementById('appShell').style.display = ''
   setTimeout(() => { loadHome?.() }, 0)
+}
+
+async function logAudit(acao, detalhe = '', extra = {}) {
+  if (!currentUser) return
+  await supabase.from('audit_log').insert({
+    user_id: currentUser.id,
+    user_name: currentUser.user_metadata?.name || currentUser.email || '',
+    acao,
+    detalhe,
+    extra: Object.keys(extra).length ? extra : null
+  })
 }
 
 function showLoginScreen() {
@@ -188,7 +200,7 @@ document.querySelectorAll('.settings-logout').forEach(btn => btn.addEventListene
 // ============================================
 function applyProfileToUI(profile, email) {
   const displayName = profile.name || email?.split('@')[0] || ''
-  const roleLabel   = profile.access_level === 'adm' ? 'Administrador' : 'Estudante de Design UI/UX'
+  const roleLabel   = profile.access_level === 'super' ? 'Super Admin' : profile.access_level === 'adm' ? 'Administrador' : 'Estudante de Design UI/UX'
 
   document.querySelectorAll('.perfil-name').forEach(el => el.textContent = displayName)
   document.querySelectorAll('.perfil-role').forEach(el => el.textContent = roleLabel)
@@ -203,12 +215,19 @@ function applyProfileToUI(profile, email) {
   const sectorEl = document.getElementById('perfilSector')
   if (sectorEl && profile.sector) sectorEl.textContent = profile.sector
 
-  const isAdmin = profile.access_level === 'adm'
+  const isSuper = profile.access_level === 'super'
+  const isAdmin = profile.access_level === 'adm' || isSuper
   document.querySelectorAll('[data-page="admin"]').forEach(el => {
     if (!isAdmin) { el.style.display = 'none'; return }
     const tag = el.tagName.toLowerCase()
     el.style.display = (tag === 'a' || tag === 'button') ? 'flex' : ''
   })
+  const controleAcesso = document.getElementById('controleAcessoSection')
+  if (controleAcesso) controleAcesso.style.display = isSuper ? '' : 'none'
+  const gerarPdfWrap = document.getElementById('btnGerarPDFWrap')
+  if (gerarPdfWrap) gerarPdfWrap.style.display = isSuper ? 'flex' : 'none'
+  const auditSection = document.getElementById('auditLogSection')
+  if (auditSection) auditSection.style.display = isSuper ? '' : 'none'
 }
 
 function applyCachedProfile(userId) {
@@ -329,9 +348,10 @@ if (sidebarCollapseBtn) {
 // ============================================
 // SALA DE AULA — conteúdo dinâmico
 // ============================================
-let salaVideos       = []
-let currentVideoId   = null
-let _catalogItems    = []
+let salaVideos         = []
+let currentVideoId     = null
+let _currentVideoTitle = ''
+let _catalogItems      = []
 let quizResolved     = false
 let _currentQuestion = null
 let _quizQuestions   = []
@@ -1701,7 +1721,7 @@ function getArtigoProgress(id) {
   if (!currentUser) return null
   return localStorage.getItem(`eduflow-artigo-${currentUser.id}-${id}`) || null
 }
-function setArtigoProgress(id, status) {
+function setArtigoProgress(id, status, titulo = '') {
   if (!currentUser) return
   localStorage.setItem(`eduflow-artigo-${currentUser.id}-${id}`, status)
   if (status === 'completed') {
@@ -1709,6 +1729,7 @@ function setArtigoProgress(id, status) {
       { user_id: currentUser.id, item_id: id, item_tipo: 'artigo', concluido: true },
       { onConflict: 'user_id,item_id,item_tipo' }
     )
+    logAudit('artigo_lido', titulo || `Artigo ID: ${id}`)
   }
 }
 
@@ -1780,7 +1801,7 @@ async function openArtigo(artigo) {
   }
 
   function marcarConcluido() {
-    setArtigoProgress(artigo.id, 'completed')
+    setArtigoProgress(artigo.id, 'completed', artigo.titulo || artigo.title || '')
     concluirBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Concluído!'
     concluirBtn.disabled = true; concluirBtn.style.opacity = '0.7'
     mostrarProximo()
@@ -1867,6 +1888,7 @@ function setVideoProgress(videoId, status) {
       { user_id: currentUser.id, item_id: videoId, item_tipo: 'video', concluido: true },
       { onConflict: 'user_id,item_id,item_tipo' }
     )
+    logAudit('video_concluido', _currentVideoTitle || `Vídeo ID: ${videoId}`)
   }
 }
 
@@ -1882,6 +1904,7 @@ function setVideoWatched(videoId) {
 
 function openVideoSala(video) {
   currentVideoId = video.id
+  _currentVideoTitle = video.title || ''
   if (getVideoProgress(video.id) !== 'completed') setVideoProgress(video.id, 'started')
   window.showPage('sala')
 }
@@ -2250,6 +2273,7 @@ async function openAvaliacao(av) {
       console.error('[Avaliação] Erro ao salvar nota:', errUpsert)
     } else {
       console.log('[Avaliação] Nota salva com sucesso:', pct + '%', savedData)
+      logAudit('avaliacao_concluida', av.titulo || `Avaliação ID: ${av.id}`, { nota_pct: pct })
     }
     conteudo.innerHTML = `
       <div style="text-align:center;padding:2rem">
@@ -4373,3 +4397,74 @@ async function loadAdminCertificados() {
     listEl.appendChild(div)
   }
 }
+
+// ============================================
+// SUPER — LOG DE AUDITORIA
+// ============================================
+const AUDIT_ICONS = {
+  login:               { icon: 'login',        cor: '#1565c0', label: 'Login' },
+  video_concluido:     { icon: 'play_circle',  cor: '#2e7d32', label: 'Vídeo concluído' },
+  artigo_lido:         { icon: 'article',      cor: '#6a1b9a', label: 'Artigo lido' },
+  avaliacao_concluida: { icon: 'assignment',   cor: '#e65100', label: 'Avaliação concluída' },
+}
+
+function toggleAuditLog() {
+  const body = document.getElementById('auditLogBody')
+  const icon = document.getElementById('auditLogIcon')
+  const isOpen = body.style.display !== 'none'
+  body.style.display = isOpen ? 'none' : 'block'
+  icon.textContent = isOpen ? 'expand_more' : 'expand_less'
+}
+window.toggleAuditLog = toggleAuditLog
+
+async function loadAuditLog() {
+  const listEl = document.getElementById('auditLogList')
+  if (!listEl) return
+  listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary)">Carregando...</p>'
+
+  const filtroUsuario = document.getElementById('auditFiltroUsuario')?.value.trim().toLowerCase() || ''
+  const filtroAcao    = document.getElementById('auditFiltroAcao')?.value || ''
+
+  let query = supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(200)
+  if (filtroAcao) query = query.eq('acao', filtroAcao)
+
+  const { data: logs, error } = await query
+  if (error) { listEl.innerHTML = `<p style="color:var(--error);font-size:0.8rem">Erro: ${error.message}</p>`; return }
+  if (!logs?.length) { listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary)">Nenhum registro encontrado.</p>'; return }
+
+  const filtered = filtroUsuario
+    ? logs.filter(l => (l.user_name || '').toLowerCase().includes(filtroUsuario))
+    : logs
+
+  if (!filtered.length) { listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary)">Nenhum resultado para este filtro.</p>'; return }
+
+  const rows = filtered.map(l => {
+    const meta   = AUDIT_ICONS[l.acao] || { icon: 'info', cor: '#757575', label: l.acao }
+    const data   = new Date(l.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    const extra  = l.extra?.nota_pct !== undefined ? `<span style="margin-left:0.4rem;padding:0.1rem 0.4rem;border-radius:999px;font-size:0.7rem;font-weight:700;background:${l.extra.nota_pct>=70?'#e8f5e9':'#ffebee'};color:${l.extra.nota_pct>=70?'#2e7d32':'#c62828'}">${l.extra.nota_pct}%</span>` : ''
+    return `<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <td style="padding:0.5rem 0.75rem;white-space:nowrap">
+        <span class="material-symbols-outlined icon-filled" style="font-size:1rem;color:${meta.cor};vertical-align:middle">${meta.icon}</span>
+        <span style="font-size:0.75rem;font-weight:600;color:${meta.cor};margin-left:0.25rem">${meta.label}</span>
+      </td>
+      <td style="padding:0.5rem 0.75rem;font-size:0.82rem;font-weight:600;color:var(--text-primary)">${escHtml(l.user_name || '—')}</td>
+      <td style="padding:0.5rem 0.75rem;font-size:0.82rem;color:var(--text-secondary)">${escHtml(l.detalhe || '—')}${extra}</td>
+      <td style="padding:0.5rem 0.75rem;font-size:0.75rem;color:var(--text-secondary);white-space:nowrap">${data}</td>
+    </tr>`
+  }).join('')
+
+  listEl.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:0.875rem">
+        <thead><tr style="border-bottom:2px solid var(--border);text-align:left;background:var(--surface)">
+          <th style="padding:0.5rem 0.75rem;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">Ação</th>
+          <th style="padding:0.5rem 0.75rem;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">Aluno</th>
+          <th style="padding:0.5rem 0.75rem;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">Detalhe</th>
+          <th style="padding:0.5rem 0.75rem;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">Data/Hora</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p style="text-align:right;font-size:0.72rem;color:var(--text-secondary);margin-top:0.5rem">${filtered.length} registro${filtered.length !== 1 ? 's' : ''}</p>`
+}
+window.loadAuditLog = loadAuditLog
