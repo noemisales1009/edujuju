@@ -2206,7 +2206,7 @@ async function openAvaliacao(av) {
     const pct = Math.round((acertos / questoes.length) * 100)
     localStorage.setItem(`eduflow-av-${currentUser.id}-${av.id}`, 'completed')
     supabase.from('progresso_usuario').upsert(
-      { user_id: currentUser.id, item_id: av.id, item_tipo: 'avaliacao', concluido: true },
+      { user_id: currentUser.id, item_id: av.id, item_tipo: 'avaliacao', concluido: true, nota_pct: pct },
       { onConflict: 'user_id,item_id,item_tipo' }
     )
     conteudo.innerHTML = `
@@ -3009,7 +3009,9 @@ async function loadReports() {
     { data: porUsuarioTrilha },
     { data: porSetorTrilha },
     { data: trilhas },
-    { data: principais_duvidas }
+    { data: principais_duvidas },
+    { data: avaliacoesDb },
+    { data: notasAvaliacao }
   ] = await Promise.all([
     supabase.from('videos').select('*', { count: 'exact', head: true }),
     supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
@@ -3018,7 +3020,9 @@ async function loadReports() {
     supabase.from('v_desempenho_usuario_trilha').select('*'),
     supabase.from('v_desempenho_setor_trilha').select('*'),
     supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
-    supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(30)
+    supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(30),
+    supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('progresso_usuario').select('user_id, item_id, nota_pct').eq('item_tipo', 'avaliacao').eq('concluido', true)
   ])
 
   const thS = 'text-align:left;padding:0.5rem 0.75rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
@@ -3147,6 +3151,49 @@ async function loadReports() {
     <tbody>${setorRows}</tbody>
   </table>` : semDados(2 + trilhaList.length)
 
+  // ── NOTAS DAS AVALIAÇÕES POR USUÁRIO ──
+  // notasAvaliacao: [{user_id, item_id, nota_pct}]
+  // Monta mapa: user_id -> {avaliacao_id -> nota_pct}
+  const avNotaMap = {}
+  for (const r of (notasAvaliacao || [])) {
+    if (!avNotaMap[r.user_id]) avNotaMap[r.user_id] = {}
+    avNotaMap[r.user_id][r.item_id] = Number(r.nota_pct)
+  }
+  const avList = (avaliacoesDb || [])
+
+  // Tabela de notas de avaliação por usuário
+  const avHeaders = avList.map(a => `<th style="${thC}" title="${escHtml(a.titulo)}">${escHtml(a.topics || a.titulo.substring(0, 14))}</th>`).join('')
+  const avUsersMap = {}
+  ;(porUsuarioTrilha || []).forEach(r => {
+    if (!avUsersMap[r.user_id]) avUsersMap[r.user_id] = { name: r.name, sector: r.sector }
+  })
+  // Adiciona users que só têm avaliação
+  for (const uid of Object.keys(avNotaMap)) {
+    if (!avUsersMap[uid]) avUsersMap[uid] = { name: uid, sector: '' }
+  }
+  const avRows = Object.entries(avUsersMap).map(([uid, u]) => {
+    const cols = avList.map(a => {
+      const nota = avNotaMap[uid]?.[a.id]
+      return `<td style="${tdC}">${nota !== undefined ? barra(nota) : '<span style="color:var(--text-secondary);font-size:0.75rem">—</span>'}</td>`
+    }).join('')
+    const notas = avList.map(a => avNotaMap[uid]?.[a.id]).filter(n => n !== undefined)
+    const media = notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null
+    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <td style="${tdS}"><span style="font-weight:500">${escHtml(u.name || uid)}</span><div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')}</div></td>
+      ${cols}
+      <td style="${tdC};font-weight:700">${notaBadge(media)}</td>
+    </tr>`
+  }).join('')
+
+  const avTable = avRows && avList.length ? `<table class="resp-table" style="width:100%;border-collapse:collapse">
+    <thead style="background:var(--surface)"><tr>
+      <th style="${thS}">Aluno</th>
+      ${avHeaders}
+      <th style="${thC}">Média</th>
+    </tr></thead>
+    <tbody>${avRows}</tbody>
+  </table>` : semDados(2 + avList.length)
+
   grid.innerHTML = `
     <div class="report-card">
       <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">play_circle</span></div>
@@ -3169,6 +3216,7 @@ async function loadReports() {
       <span class="report-label">Respostas</span>
     </div>
     ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable)}
+    ${tabelaCard('assignment', 'Notas das Avaliações por Aluno', avTable)}
     ${tabelaCard('leaderboard', 'Ranking Individual — desempenho por trilha', rankTable)}
     ${tabelaCard('psychology', 'Principais Dúvidas — perguntas com maior taxa de erro', (() => {
       if (!principais_duvidas?.length) return semDados(4)
@@ -3730,16 +3778,19 @@ async function loadHome() {
   if (!currentUser) return
   const userId = currentUser.id
 
-  const [{ data: videos }, { data: artigos }] = await Promise.all([
+  const [{ data: videos }, { data: artigos }, { data: avaliacoes }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('artigos').select('id, titulo, descricao, imagem_url, topics').eq('visivel', true).order('ordem', { ascending: true })
+    supabase.from('artigos').select('id, titulo, descricao, imagem_url, topics').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics').eq('visivel', true).order('ordem', { ascending: true })
   ])
 
-  const allVideos  = videos  || []
-  const allArtigos = artigos || []
+  const allVideos     = videos     || []
+  const allArtigos    = artigos    || []
+  const allAvaliacoes = avaliacoes || []
   const allItems   = [
-    ...allVideos.map(v  => ({ ...v,  _tipo: 'video'  })),
-    ...allArtigos.map(a => ({ ...a,  _tipo: 'artigo' }))
+    ...allVideos.map(v  => ({ ...v,  _tipo: 'video'     })),
+    ...allArtigos.map(a => ({ ...a,  _tipo: 'artigo'    })),
+    ...allAvaliacoes.map(a => ({ ...a, _tipo: 'avaliacao' }))
   ]
   if (!_catalogItems.length) _catalogItems = allItems
 
@@ -3752,16 +3803,20 @@ async function loadHome() {
     .eq('concluido', true)
   if (progressData) {
     for (const p of progressData) {
-      if (p.item_tipo === 'video') localStorage.setItem(`eduflow-prog-${userId}-${p.item_id}`, 'completed')
+      if (p.item_tipo === 'video')      localStorage.setItem(`eduflow-prog-${userId}-${p.item_id}`, 'completed')
       else if (p.item_tipo === 'artigo') localStorage.setItem(`eduflow-artigo-${userId}-${p.item_id}`, 'completed')
+      else if (p.item_tipo === 'avaliacao') localStorage.setItem(`eduflow-av-${userId}-${p.item_id}`, 'completed')
     }
   }
 
-  // --- Progresso geral ---
+  // --- Progresso geral (inclui vídeos, artigos e avaliações) ---
   const totalItems = allItems.length
-  const completed  = allItems.filter(item =>
-    (item._tipo === 'video' ? getVideoProgress(item.id) : getArtigoProgress(item.id)) === 'completed'
-  ).length
+  const completed  = allItems.filter(item => {
+    if (item._tipo === 'video')      return getVideoProgress(item.id) === 'completed'
+    if (item._tipo === 'artigo')     return getArtigoProgress(item.id) === 'completed'
+    if (item._tipo === 'avaliacao')  return getAvaliacaoProgress(item.id) === 'completed'
+    return false
+  }).length
   const pct = totalItems ? Math.round((completed / totalItems) * 100) : 0
 
   const ringFill = document.getElementById('homeRingFill')
@@ -3833,12 +3888,20 @@ async function loadHome() {
       if (!trilhasMap[key]) trilhasMap[key] = []
       trilhasMap[key].push({ ...a, _tipo: 'artigo' })
     }
+    for (const a of allAvaliacoes) {
+      if (!a.topics?.trim()) continue
+      const key = a.topics.trim()
+      if (!trilhasMap[key]) trilhasMap[key] = []
+      trilhasMap[key].push({ ...a, _tipo: 'avaliacao' })
+    }
     trilhasGrid.innerHTML = ''
     const trilhasEntries = Object.entries(trilhasMap)
     trilhasEntries.forEach(([trilha, itens], idx) => {
-      const done  = itens.filter(i =>
-        i._tipo === 'artigo' ? getArtigoProgress(i.id) === 'completed' : getVideoProgress(i.id) === 'completed'
-      ).length
+      const done  = itens.filter(i => {
+        if (i._tipo === 'artigo')    return getArtigoProgress(i.id) === 'completed'
+        if (i._tipo === 'avaliacao') return getAvaliacaoProgress(i.id) === 'completed'
+        return getVideoProgress(i.id) === 'completed'
+      }).length
       const total = itens.length
       const pctT  = total ? Math.round((done / total) * 100) : 0
       const icon  = pctT === 100 ? 'emoji_events' : pctT > 0 ? 'rocket_launch' : 'play_lesson'
@@ -3861,24 +3924,31 @@ async function loadHome() {
         // Verifica se a trilha anterior foi concluída
         if (idx > 0) {
           const [prevNome, prevItens] = trilhasEntries[idx - 1]
-          const prevDone = prevItens.filter(i =>
-            i._tipo === 'artigo' ? getArtigoProgress(i.id) === 'completed' : getVideoProgress(i.id) === 'completed'
-          ).length
+          const prevDone = prevItens.filter(i => {
+            if (i._tipo === 'artigo')    return getArtigoProgress(i.id) === 'completed'
+            if (i._tipo === 'avaliacao') return getAvaliacaoProgress(i.id) === 'completed'
+            return getVideoProgress(i.id) === 'completed'
+          }).length
           if (prevDone < prevItens.length) {
             showToast(`⚠️ Conclua "${prevNome}" antes de continuar.`, 'warning')
             return
           }
         }
         // Abre o primeiro item não concluído (ou o primeiro, se todos concluídos)
-        const nextItem = itens.find(i =>
-          (i._tipo === 'artigo' ? getArtigoProgress(i.id) : getVideoProgress(i.id)) !== 'completed'
-        ) || itens[0]
+        const nextItem = itens.find(i => {
+          if (i._tipo === 'artigo')    return getArtigoProgress(i.id) !== 'completed'
+          if (i._tipo === 'avaliacao') return getAvaliacaoProgress(i.id) !== 'completed'
+          return getVideoProgress(i.id) !== 'completed'
+        }) || itens[0]
 
         if (nextItem._tipo === 'video') {
           openVideoSala(nextItem)
         } else if (nextItem._tipo === 'artigo') {
           const { data } = await supabase.from('artigos').select('*').eq('id', nextItem.id).single()
           if (data) openArtigo(data)
+        } else if (nextItem._tipo === 'avaliacao') {
+          const { data } = await supabase.from('avaliacoes').select('*').eq('id', nextItem.id).single()
+          if (data) openAvaliacao(data)
         }
       })
 
