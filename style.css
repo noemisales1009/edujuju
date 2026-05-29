@@ -1451,9 +1451,9 @@ ul { list-style: none; }
 .settings-logout .settings-text span { color: var(--error); }
 
 /* ---- 14. Utilitários ---- */
-::-webkit-scrollbar         { width: 5px; }
-::-webkit-scrollbar-track   { background: transparent; }
-::-webkit-scrollbar-thumb   { background: var(--outline-var); border-radius: var(--r-full); }
+::-webkit-scrollbar         { width: 5px; height: 8px; }
+::-webkit-scrollbar-track   { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb   { background: var(--primary); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--outline); }
 
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
@@ -1882,6 +1882,7 @@ ul { list-style: none; }
 
 @media (max-width: 640px) {
   .resp-table-wrap { -webkit-overflow-scrolling: touch; }
+  .resp-table { min-width: 520px; }
   .resp-table th,
   .resp-table td {
     padding: 0.35rem 0.4rem !important;
