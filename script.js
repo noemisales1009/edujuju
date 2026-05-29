@@ -955,6 +955,7 @@ function switchAdminTab(tabName) {
   if (tabName === 'documentos-admin')  loadAdminDocs()
   if (tabName === 'artigos')           loadAdminArtigos()
   if (tabName === 'avaliacoes')        loadAdminAvaliacoes()
+  if (tabName === 'trilhas')           loadAdminTrilhas()
 }
 
 // Carrega dados ao entrar em páginas específicas
@@ -3927,11 +3928,14 @@ async function loadHome() {
   if (!currentUser) return
   const userId = currentUser.id
 
-  const [{ data: videos }, { data: artigos }, { data: avaliacoes }] = await Promise.all([
+  const [{ data: videos }, { data: artigos }, { data: avaliacoes }, { data: trilhasData }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, categoria, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
     supabase.from('artigos').select('id, titulo, descricao, imagem_url, topics, categoria').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics, categoria').eq('visivel', true).order('ordem', { ascending: true })
+    supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics, categoria').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('trilhas').select('nome, imagem_url, descricao').eq('visivel', true)
   ])
+  const trilhaInfoMap = {}
+  for (const t of (trilhasData || [])) trilhaInfoMap[t.nome.trim().toLowerCase()] = t
 
   const allVideos     = videos     || []
   const allArtigos    = artigos    || []
@@ -4053,15 +4057,26 @@ async function loadHome() {
       }).length
       const total = itens.length
       const pctT  = total ? Math.round((done / total) * 100) : 0
-      const icon  = pctT === 100 ? 'emoji_events' : pctT > 0 ? 'rocket_launch' : 'play_lesson'
+      const icon      = pctT === 100 ? 'emoji_events' : pctT > 0 ? 'rocket_launch' : 'play_lesson'
+      const trilhaInfo = trilhaInfoMap[trilha.trim().toLowerCase()]
       const card  = document.createElement('div')
       card.className = 'home-trilha-card surface-card'
       card.style.cursor = 'pointer'
-      card.innerHTML = `
-        <div class="home-trilha-icon">
-          <span class="material-symbols-outlined icon-filled" style="color:var(--primary)">${icon}</span>
-        </div>
-        <div class="home-trilha-info">
+      card.style.overflow = 'hidden'
+      card.style.padding = '0'
+      card.innerHTML = trilhaInfo?.imagem_url ? `
+        <img src="${trilhaInfo.imagem_url}" style="width:100%;height:110px;object-fit:cover;display:block;border-radius:var(--radius) var(--radius) 0 0">
+        <div style="padding:0.6rem 0.75rem">
+          <p class="home-trilha-name" style="margin:0 0 0.35rem">${escHtml(trilha)}</p>
+          <div class="progress-bar">
+            <div class="progress-fill${pctT === 100 ? ' done' : ''}" style="width:${pctT}%"></div>
+          </div>
+          <small style="color:var(--text-secondary)">${done}/${total} item${total !== 1 ? 's' : ''}</small>
+        </div>` : `
+        <div style="padding:0.75rem">
+          <div class="home-trilha-icon">
+            <span class="material-symbols-outlined icon-filled" style="color:var(--primary)">${icon}</span>
+          </div>
           <p class="home-trilha-name">${escHtml(trilha)}</p>
           <div class="progress-bar" style="margin-top:0.375rem">
             <div class="progress-fill${pctT === 100 ? ' done' : ''}" style="width:${pctT}%"></div>
@@ -4545,3 +4560,183 @@ async function loadAuditLog() {
     <p style="text-align:right;font-size:0.72rem;color:var(--text-secondary);margin-top:0.5rem">${filtered.length} registro${filtered.length !== 1 ? 's' : ''}</p>`
 }
 window.loadAuditLog = loadAuditLog
+
+// ============================================
+// ADMIN — TRILHAS
+// ============================================
+let editingTrilhaId  = null
+let _trilhaImagemUrl = null
+
+async function loadAdminTrilhas() {
+  const listEl = document.getElementById('trilhasList')
+  if (!listEl) return
+  listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
+
+  const [{ data: trilhasCad }, { data: vids }, { data: arts }, { data: avs }] = await Promise.all([
+    supabase.from('trilhas').select('*').order('ordem', { ascending: true }),
+    supabase.from('videos').select('categoria').not('categoria', 'is', null),
+    supabase.from('artigos').select('categoria').not('categoria', 'is', null),
+    supabase.from('avaliacoes').select('categoria').not('categoria', 'is', null)
+  ])
+
+  // Categorias existentes nos conteúdos mas ainda não na tabela trilhas
+  const nomesCadastrados = new Set((trilhasCad || []).map(t => t.nome.trim().toLowerCase()))
+  const catsExistentes = new Set()
+  ;[...(vids||[]), ...(arts||[]), ...(avs||[])].forEach(r => r.categoria?.trim() && catsExistentes.add(r.categoria.trim()))
+  const naoFormalizadas = Array.from(catsExistentes).filter(c => !nomesCadastrados.has(c.toLowerCase()))
+
+  const total = (trilhasCad?.length || 0) + naoFormalizadas.length
+  const countEl = document.getElementById('trilhasCount')
+  if (countEl) countEl.textContent = `${total} trilha${total !== 1 ? 's' : ''}`
+
+  listEl.innerHTML = ''
+
+  // Mostra aviso de trilhas não formalizadas
+  if (naoFormalizadas.length) {
+    const aviso = document.createElement('div')
+    aviso.style.cssText = 'background:var(--primary-soft);border-radius:var(--radius);padding:0.75rem 1rem;margin-bottom:0.75rem;font-size:0.82rem;color:var(--primary)'
+    aviso.innerHTML = `<strong>${naoFormalizadas.length} trilha${naoFormalizadas.length>1?'s':''} sem cadastro:</strong> ${naoFormalizadas.map(c=>`<span style="font-weight:600">${escHtml(c)}</span>`).join(', ')} — clique em <strong>Nova Trilha</strong> para adicionar imagem e descrição.`
+    listEl.appendChild(aviso)
+  }
+
+  if (!trilhasCad?.length && !naoFormalizadas.length) {
+    listEl.innerHTML = '<div class="list-empty"><span class="material-symbols-outlined">route</span><p>Nenhuma trilha encontrada.</p></div>'
+    return
+  }
+
+  const data = trilhasCad || []
+  data.forEach(t => {
+    const div = document.createElement('div')
+    div.className = 'artigo-list-item surface-card'
+    div.style.display = 'flex'
+    div.style.alignItems = 'center'
+    div.style.gap = '0.75rem'
+    div.style.padding = '0.75rem 1rem'
+
+    const thumb = t.imagem_url
+      ? `<img src="${t.imagem_url}" style="width:56px;height:56px;object-fit:cover;border-radius:var(--radius);flex-shrink:0">`
+      : `<div style="width:56px;height:56px;border-radius:var(--radius);background:var(--primary-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span class="material-symbols-outlined icon-filled" style="color:var(--primary)">route</span></div>`
+
+    div.innerHTML = `
+      ${thumb}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary)">${escHtml(t.nome)}</div>
+        ${t.descricao ? `<div style="font-size:0.78rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.descricao)}</div>` : ''}
+        <span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:999px;background:${t.visivel ? 'var(--primary-soft)' : 'var(--surface)'};color:${t.visivel ? 'var(--primary)' : 'var(--text-secondary)'}">${t.visivel ? 'Visível' : 'Oculta'}</span>
+      </div>
+      <div style="display:flex;gap:0.4rem;flex-shrink:0">
+        <button class="btn-icon" onclick="editTrilha(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="Editar"><span class="material-symbols-outlined">edit</span></button>
+        <button class="btn-icon" onclick="deleteTrilha('${t.id}','${escHtml(t.nome)}')" title="Excluir" style="color:var(--error)"><span class="material-symbols-outlined">delete</span></button>
+      </div>`
+    listEl.appendChild(div)
+  })
+}
+window.loadAdminTrilhas = loadAdminTrilhas
+
+async function openTrilhaModal(t = null) {
+  editingTrilhaId  = null
+  _trilhaImagemUrl = null
+  document.getElementById('formTrilha').reset()
+  document.getElementById('trilhaError').textContent = ''
+  document.getElementById('trilhaImagemPreview').style.display = 'none'
+  document.getElementById('trilhaImagemLabelText').textContent = 'Clique para escolher uma imagem'
+  document.getElementById('modalTrilhaTitle').textContent  = t ? 'Editar Trilha' : 'Nova Trilha'
+  document.getElementById('saveTrilhaBtn').textContent     = t ? 'Salvar Alterações' : 'Salvar Trilha'
+
+  // Carrega categorias existentes nos conteúdos
+  const existenteWrap = document.getElementById('trilhaExistenteWrap')
+  const existenteSel  = document.getElementById('trilhaExistente')
+  if (existenteWrap) existenteWrap.style.display = t ? 'none' : ''
+  if (!t && existenteSel) {
+    const [{ data: vids }, { data: arts }, { data: avs }, { data: trilhasCad }] = await Promise.all([
+      supabase.from('videos').select('categoria').not('categoria', 'is', null),
+      supabase.from('artigos').select('categoria').not('categoria', 'is', null),
+      supabase.from('avaliacoes').select('categoria').not('categoria', 'is', null),
+      supabase.from('trilhas').select('nome')
+    ])
+    const jasCadastradas = new Set((trilhasCad || []).map(t => t.nome.trim().toLowerCase()))
+    const cats = new Set()
+    ;[...(vids||[]), ...(arts||[]), ...(avs||[])].forEach(r => r.categoria?.trim() && cats.add(r.categoria.trim()))
+    const novas = Array.from(cats).filter(c => !jasCadastradas.has(c.toLowerCase())).sort()
+    existenteSel.innerHTML = '<option value="">-- Selecionar trilha existente --</option>' +
+      novas.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('')
+    existenteSel.onchange = () => {
+      if (existenteSel.value) document.getElementById('trilhaNome').value = existenteSel.value
+    }
+  }
+
+  if (t) {
+    editingTrilhaId  = t.id
+    _trilhaImagemUrl = t.imagem_url || null
+    document.getElementById('trilhaNome').value      = t.nome || ''
+    document.getElementById('trilhaDescricao').value = t.descricao || ''
+    document.getElementById('trilhaVisivel').checked = t.visivel !== false
+    if (t.imagem_url) {
+      const preview = document.getElementById('trilhaImagemPreview')
+      preview.src = t.imagem_url; preview.style.display = ''
+      document.getElementById('trilhaImagemLabelText').textContent = 'Imagem atual (clique para trocar)'
+    }
+  }
+  document.getElementById('modalTrilha').classList.add('open')
+}
+
+function closeTrilhaModal() { document.getElementById('modalTrilha').classList.remove('open') }
+
+window.editTrilha = t => openTrilhaModal(typeof t === 'string' ? JSON.parse(t) : t)
+
+window.deleteTrilha = async (id, nome) => {
+  if (!confirm(`Excluir a trilha "${nome}"? Esta ação não pode ser desfeita.`)) return
+  await supabase.from('trilhas').delete().eq('id', id)
+  loadAdminTrilhas()
+}
+
+document.getElementById('btnAddTrilha')?.addEventListener('click', () => openTrilhaModal())
+document.getElementById('closeModalTrilha')?.addEventListener('click', closeTrilhaModal)
+document.getElementById('cancelTrilha')?.addEventListener('click', closeTrilhaModal)
+
+document.getElementById('trilhaImagemFile')?.addEventListener('change', e => {
+  const file = e.target.files[0]
+  const preview = document.getElementById('trilhaImagemPreview')
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = ev => { preview.src = ev.target.result; preview.style.display = '' }
+    reader.readAsDataURL(file)
+    document.getElementById('trilhaImagemLabelText').textContent = file.name
+  } else {
+    preview.style.display = 'none'
+    document.getElementById('trilhaImagemLabelText').textContent = 'Clique para escolher uma imagem'
+  }
+})
+
+document.getElementById('formTrilha')?.addEventListener('submit', async e => {
+  e.preventDefault()
+  const btn     = e.target.querySelector('[type="submit"]')
+  const errorEl = document.getElementById('trilhaError')
+  const nome    = document.getElementById('trilhaNome').value.trim()
+  const descr   = document.getElementById('trilhaDescricao').value.trim()
+  const visivel = document.getElementById('trilhaVisivel').checked
+  const file    = document.getElementById('trilhaImagemFile').files[0]
+  if (!nome) { errorEl.textContent = 'Preencha o nome da trilha.'; return }
+  setLoading(btn, true, 'Salvando...')
+  errorEl.textContent = ''
+
+  let imagemUrl = _trilhaImagemUrl
+  if (file) {
+    const ext  = file.name.split('.').pop()
+    const path = `trilhas/${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('imagens').upload(path, file, { contentType: file.type })
+    if (upErr) { errorEl.textContent = 'Erro ao enviar imagem: ' + upErr.message; setLoading(btn, false, editingTrilhaId ? 'Salvar Alterações' : 'Salvar Trilha'); return }
+    const { data: urlData } = supabase.storage.from('imagens').getPublicUrl(path)
+    imagemUrl = urlData.publicUrl
+  }
+
+  const payload = { nome, descricao: descr || null, imagem_url: imagemUrl || null, visivel }
+  const { error } = editingTrilhaId
+    ? await supabase.from('trilhas').update(payload).eq('id', editingTrilhaId)
+    : await supabase.from('trilhas').insert(payload)
+
+  setLoading(btn, false, editingTrilhaId ? 'Salvar Alterações' : 'Salvar Trilha')
+  if (error) { errorEl.textContent = 'Erro: ' + error.message; return }
+  closeTrilhaModal()
+  loadAdminTrilhas()
+})
