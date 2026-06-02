@@ -3274,7 +3274,7 @@ async function loadReports() {
     supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
     supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(30),
     supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('progresso_usuario').select('user_id, item_id, nota_pct').eq('item_tipo', 'avaliacao').eq('concluido', true)
+    supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')
   ])
 
   const thS = 'text-align:left;padding:0.5rem 0.75rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
@@ -3344,7 +3344,7 @@ async function loadReports() {
   })
 
   const medals = ['🥇','🥈','🥉']
-  const rankHeaders = trilhaList.map(t => { const lbl = (t.topics || t.title).substring(0, 20); return `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(lbl)}</th>` }).join('')
+  const rankHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.title.substring(0, 22))}</th>`).join('')
   const rankRows = usersArr.length ? usersArr.map((u, i) => {
     const rank = i < 3 ? `<span style="font-size:1rem">${medals[i]}</span>`
       : `<span style="display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;border-radius:50%;background:var(--border);font-size:0.72rem;font-weight:700;color:var(--text-secondary)">${i+1}</span>`
@@ -3389,7 +3389,7 @@ async function loadReports() {
     setorMap[s].trilhas[row.video_id] = row.media_pct
   }
 
-  const setorHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.topics || t.title.substring(0, 12))}</th>`).join('')
+  const setorHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.title.substring(0, 22))}</th>`).join('')
   const setorRows = Object.entries(setorMap).map(([setor, d]) => {
     const cols = trilhaList.map(t => {
       const pct = d.trilhas[t.id]
@@ -3414,17 +3414,17 @@ async function loadReports() {
   </table>` : semDados(2 + trilhaList.length)
 
   // ── NOTAS DAS AVALIAÇÕES POR USUÁRIO ──
-  // notasAvaliacao: [{user_id, item_id, nota_pct}]
+  // notasAvaliacao: [{user_id, avaliacao_id, nota_pct}]
   // Monta mapa: user_id -> {avaliacao_id -> nota_pct}
   const avNotaMap = {}
   for (const r of (notasAvaliacao || [])) {
     if (!avNotaMap[r.user_id]) avNotaMap[r.user_id] = {}
-    avNotaMap[r.user_id][r.item_id] = Number(r.nota_pct)
+    avNotaMap[r.user_id][String(r.avaliacao_id)] = Number(r.nota_pct)
   }
   const avList = (avaliacoesDb || [])
 
   // Tabela de notas de avaliação por usuário
-  const avHeaders = avList.map(a => `<th style="${thC}" title="${escHtml(a.titulo)}">${escHtml(a.topics || a.titulo.substring(0, 14))}</th>`).join('')
+  const avHeaders = avList.map(a => `<th style="${thC}" title="${escHtml(a.titulo)}">${escHtml(a.titulo)}</th>`).join('')
   const avUsersMap = {}
   ;(porUsuarioTrilha || []).forEach(r => {
     if (!avUsersMap[r.user_id]) avUsersMap[r.user_id] = { name: r.name, sector: r.sector }
@@ -3435,10 +3435,10 @@ async function loadReports() {
   }
   const avRows = Object.entries(avUsersMap).map(([uid, u]) => {
     const cols = avList.map(a => {
-      const nota = avNotaMap[uid]?.[a.id]
+      const nota = avNotaMap[uid]?.[String(a.id)]
       return `<td style="${tdC}">${nota !== undefined ? barra(nota) : '<span style="color:var(--text-secondary);font-size:0.75rem">—</span>'}</td>`
     }).join('')
-    const notas = avList.map(a => avNotaMap[uid]?.[a.id]).filter(n => n !== undefined)
+    const notas = avList.map(a => avNotaMap[uid]?.[String(a.id)]).filter(n => n !== undefined)
     const media = notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null
     return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <td style="${tdS}"><span style="font-weight:500">${escHtml(u.name || uid)}</span><div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')}</div></td>
