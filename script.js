@@ -350,6 +350,7 @@ if (sidebarCollapseBtn) {
 // SALA DE AULA — conteúdo dinâmico
 // ============================================
 let salaVideos         = []
+let salaItems          = []  // todos os tipos na ordem da trilha
 let currentVideoId     = null
 let _currentVideoTitle = ''
 let _catalogItems      = []
@@ -365,13 +366,43 @@ const quizFeedback = document.getElementById('quizFeedback')
 if (confirmBtn) confirmBtn.addEventListener('click', handleQuiz)
 
 async function loadSalaDeAula() {
-  const [{ data: videos }, { data: todasRespostas }] = await Promise.all([
-    supabase.from('videos').select('id, title, description, youtube_url, topics, ordem, texto_aula').order('ordem', { ascending: true }),
+  const [{ data: seq }, { data: todasRespostas }] = await Promise.all([
+    supabase.from('trilha_conteudo').select('item_id, tipo').order('ordem', { ascending: true }),
     currentUser
       ? supabase.from('respostas').select('question_id, is_correct, chosen_index').eq('user_id', currentUser.id)
       : Promise.resolve({ data: [] })
   ])
-  salaVideos = videos || []
+
+  let videos = []
+  if (seq?.length) {
+    const videoIds = seq.filter(s => s.tipo === 'video').map(s => s.item_id)
+    const avIds    = seq.filter(s => s.tipo === 'avaliacao').map(s => s.item_id)
+
+    const [{ data: vids }, { data: avs }] = await Promise.all([
+      videoIds.length ? supabase.from('videos').select('id, title, description, youtube_url, topics, ordem, texto_aula').in('id', videoIds) : Promise.resolve({ data: [] }),
+      avIds.length    ? supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics').in('id', avIds) : Promise.resolve({ data: [] }),
+    ])
+
+    const vidMap = Object.fromEntries((vids || []).map(v => [v.id, { ...v, _tipo: 'video' }]))
+    const avMap  = Object.fromEntries((avs  || []).map(a => [a.id, { ...a, _tipo: 'avaliacao' }]))
+
+    // Monta lista na ordem da trilha_conteudo
+    salaItems = seq.map(s => {
+      if (s.tipo === 'video')     return vidMap[s.item_id]
+      if (s.tipo === 'avaliacao') return avMap[s.item_id]
+      return null
+    }).filter(Boolean)
+
+    videos = salaItems.filter(i => i._tipo === 'video')
+  } else {
+    const { data: vids } = await supabase
+      .from('videos')
+      .select('id, title, description, youtube_url, topics, ordem, texto_aula')
+      .order('ordem', { ascending: true })
+    videos = (vids || []).map(v => ({ ...v, _tipo: 'video' }))
+    salaItems = videos
+  }
+  salaVideos = videos
 
   const emptyEl  = document.getElementById('salaEmpty')
   const playerEl = document.getElementById('videoPlayer')
@@ -785,20 +816,34 @@ function setQuizBtnLabel() {
 function renderModuleList(currentId) {
   const list = document.getElementById('salaModuleList')
   if (!list) return
-  list.innerHTML = salaVideos.map((v, i) => {
-    const isCurrent   = v.id === currentId
-    const isDone      = getVideoProgress(v.id) === 'completed'
-    const canNavigate = isCurrent || isDone
-    const icon = isCurrent ? 'play_circle' : isDone ? 'check_circle' : 'lock'
-    const cls  = isCurrent ? 'item-current' : isDone ? 'item-done' : 'item-locked'
+  list.innerHTML = salaItems.map((item, i) => {
+    const isAv      = item._tipo === 'avaliacao'
+    const isCurrent = !isAv && item.id === currentId
+    const isDone    = isAv
+      ? getAvaliacaoProgress(item.id) === 'completed'
+      : getVideoProgress(item.id) === 'completed'
+    const canNavigate = isCurrent || isDone || isAv
+    const title  = isAv ? item.titulo : item.title
+    const icon   = isAv
+      ? (isDone ? 'assignment_turned_in' : 'assignment')
+      : (isCurrent ? 'play_circle' : isDone ? 'check_circle' : 'lock')
+    const cls    = isCurrent ? 'item-current' : isDone ? 'item-done' : isAv ? '' : 'item-locked'
+    const action = isAv
+      ? `window.abrirAvaliacaoSala(${item.id})`
+      : canNavigate ? `window.playSalaVideo(${item.id})` : ''
     return `<li class="module-item ${cls}"
-      style="cursor:${canNavigate ? 'pointer' : 'default'};${isDone && !isCurrent ? 'opacity:0.8' : ''}"
-      ${canNavigate ? `onclick="window.playSalaVideo(${v.id})"` : ''}>
-      <span class="material-symbols-outlined" style="${isDone && !isCurrent ? 'color:var(--primary)' : ''}">${icon}</span>
-      <span>${i + 1}. ${escHtml(v.title)}</span>
+      style="cursor:${canNavigate ? 'pointer' : 'default'}"
+      ${action ? `onclick="${action}"` : ''}>
+      <span class="material-symbols-outlined" style="${isDone ? 'color:var(--primary)' : isAv ? 'color:var(--secondary)' : ''}">${icon}</span>
+      <span>${i + 1}. ${escHtml(title)}</span>
       ${isCurrent ? '<span class="pulse-dot"></span>' : ''}
     </li>`
   }).join('')
+}
+
+window.abrirAvaliacaoSala = async function(id) {
+  const { data: av } = await supabase.from('avaliacoes').select('*').eq('id', id).single()
+  if (av) openAvaliacao(av)
 }
 
 window.playSalaVideo = async function(id) {
