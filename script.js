@@ -233,7 +233,7 @@ function applyProfileToUI(profile, email) {
 function applyCachedProfile(userId) {
   try {
     const cached = localStorage.getItem('eduflow-profile-' + userId)
-    if (cached) applyProfileToUI(JSON.parse(cached), currentUser?.email)
+    if (cached) { window._currentProfile = JSON.parse(cached); applyProfileToUI(window._currentProfile, currentUser?.email) }
   } catch {}
 }
 
@@ -246,6 +246,7 @@ async function loadProfile() {
 
   if (!profile) return
 
+  window._currentProfile = profile
   try { localStorage.setItem('eduflow-profile-' + currentUser.id, JSON.stringify(profile)) } catch {}
 
   applyProfileToUI(profile, currentUser.email)
@@ -1712,30 +1713,96 @@ window.editDoc = editDoc
 // ============================================
 // CATÁLOGO — carrega vídeos do Supabase
 // ============================================
+let _reorderMode = false
+
+document.getElementById('btnReordenarCatalogo')?.addEventListener('click', () => {
+  _reorderMode = !_reorderMode
+  const label = document.getElementById('btnReordenarLabel')
+  const btn   = document.getElementById('btnReordenarCatalogo')
+  if (label) label.textContent = _reorderMode ? 'Concluir' : 'Reordenar'
+  if (btn) { btn.style.background = _reorderMode ? 'var(--primary)' : 'transparent'; btn.style.color = _reorderMode ? '#fff' : 'var(--primary)' }
+  loadCatalogo()
+})
+
+async function moverItemCatalogo(item, direcao) {
+  const tabela = item._tipo === 'video' ? 'videos' : item._tipo === 'artigo' ? 'artigos' : 'avaliacoes'
+  const lista  = _catalogItems.filter(i => i._tipo === item._tipo).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+  const idx    = lista.findIndex(i => String(i.id) === String(item.id))
+  const outro  = lista[idx + direcao]
+  if (!outro) return
+  await Promise.all([
+    supabase.from(tabela).update({ ordem: outro.ordem ?? (idx + direcao) }).eq('id', item.id),
+    supabase.from(tabela).update({ ordem: item.ordem ?? idx }).eq('id', outro.id)
+  ])
+  loadCatalogo()
+}
+window.moverItemCatalogo = moverItemCatalogo
+
 async function loadCatalogo() {
   const grid = document.getElementById('catalogoGrid')
   grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">hourglass_empty</span><p>Carregando vídeos...</p></div>'
 
-  const [{ data: videos, error }, { data: artigos }, { data: avaliacoes }] = await Promise.all([
-    supabase.from('videos').select('id, title, topics, youtube_url, description, ordem').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('artigos').select('id, titulo, descricao, imagem_url, conteudo, conteudo_blocos, topics, ordem').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics, ordem').eq('visivel', true).order('ordem', { ascending: true })
-  ])
+  // Busca sequência definida no admin (trilha_conteudo) + detalhes de cada tipo
+  const { data: seq } = await supabase
+    .from('trilha_conteudo')
+    .select('tipo, item_id, obrigatorio')
+    .order('ordem', { ascending: true })
 
-  const allItems = [
-    ...(videos || []).map(v => ({ ...v, _tipo: 'video' })),
-    ...(artigos || []).map(a => ({ ...a, _tipo: 'artigo' })),
-    ...(avaliacoes || []).map(a => ({ ...a, _tipo: 'avaliacao' }))
-  ]
+  // Fallback: se não há sequência, busca diretamente das tabelas
+  if (!seq?.length) {
+    const [{ data: videos, error }, { data: artigos }, { data: avaliacoes }] = await Promise.all([
+      supabase.from('videos').select('id, title, topics, youtube_url, description, ordem').eq('visivel', true).order('ordem', { ascending: true }),
+      supabase.from('artigos').select('id, titulo, descricao, imagem_url, conteudo, conteudo_blocos, topics, ordem').eq('visivel', true).order('ordem', { ascending: true }),
+      supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics, ordem').eq('visivel', true).order('ordem', { ascending: true })
+    ])
+    const allItems = [
+      ...(videos || []).map(v => ({ ...v, _tipo: 'video' })),
+      ...(artigos || []).map(a => ({ ...a, _tipo: 'artigo' })),
+      ...(avaliacoes || []).map(a => ({ ...a, _tipo: 'avaliacao' }))
+    ]
+    if (error || !allItems.length) {
+      grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">play_circle</span><p>Nenhum conteúdo disponível ainda.</p></div>'
+      return
+    }
+    grid.innerHTML = ''
+    _catalogItems = allItems
+  } else {
+    // Busca detalhes de cada tipo em paralelo
+    const videoIds  = seq.filter(s => s.tipo === 'video').map(s => s.item_id)
+    const artigoIds = seq.filter(s => s.tipo === 'artigo').map(s => s.item_id)
+    const avIds     = seq.filter(s => s.tipo === 'avaliacao').map(s => s.item_id)
 
-  if (error || !allItems.length) {
-    grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">play_circle</span><p>Nenhum conteúdo disponível ainda.</p></div>'
-    return
+    const [{ data: videos }, { data: artigos }, { data: avaliacoes }] = await Promise.all([
+      videoIds.length  ? supabase.from('videos').select('id, title, topics, youtube_url, description, ordem').in('id', videoIds).eq('visivel', true)    : Promise.resolve({ data: [] }),
+      artigoIds.length ? supabase.from('artigos').select('id, titulo, descricao, imagem_url, conteudo, conteudo_blocos, topics, ordem').in('id', artigoIds).eq('visivel', true) : Promise.resolve({ data: [] }),
+      avIds.length     ? supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics, ordem').in('id', avIds).eq('visivel', true)       : Promise.resolve({ data: [] }),
+    ])
+
+    const videoMap  = Object.fromEntries((videos || []).map(v => [v.id, v]))
+    const artigoMap = Object.fromEntries((artigos || []).map(a => [a.id, a]))
+    const avMap     = Object.fromEntries((avaliacoes || []).map(a => [a.id, a]))
+
+    // Monta lista na ordem da trilha_conteudo (pula documentos e itens não visíveis)
+    const allItems = seq
+      .filter(s => s.tipo !== 'documento')
+      .map(s => {
+        const item = s.tipo === 'video' ? videoMap[s.item_id]
+                   : s.tipo === 'artigo' ? artigoMap[s.item_id]
+                   : avMap[s.item_id]
+        if (!item) return null
+        return { ...item, _tipo: s.tipo }
+      })
+      .filter(Boolean)
+
+    if (!allItems.length) {
+      grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><span class="material-symbols-outlined">play_circle</span><p>Nenhum conteúdo disponível ainda.</p></div>'
+      return
+    }
+
+    grid.innerHTML = ''
+    _catalogItems = allItems
   }
-
-  grid.innerHTML = ''
-  _catalogItems = allItems
-  allItems.forEach(v => {
+  _catalogItems.forEach(v => {
     const isArtigo    = v._tipo === 'artigo'
     const isAvaliacao = v._tipo === 'avaliacao'
     const isVideo     = v._tipo === 'video'
@@ -1778,9 +1845,29 @@ async function loadCatalogo() {
         ${desc ? `<p class="card-desc">${escHtml(desc)}</p>` : ''}
         ${isVideo ? `<div class="progress-bar"><div class="progress-fill${isConcluido ? ' done' : ''}" style="width:${pct}%"></div></div>` : ''}
       </div>`
-    const handler = isAvaliacao ? () => openAvaliacao(v) : isArtigo ? () => openArtigo(v) : () => openVideoSala(v)
-    article.addEventListener('click', handler)
-    article.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler() } })
+    if (_reorderMode) {
+      const isAdmin = currentUser && ['adm','super'].includes(window._currentProfile?.access_level)
+      if (isAdmin) {
+        const overlay = document.createElement('div')
+        overlay.style.cssText = 'position:absolute;top:0.5rem;right:0.5rem;display:flex;flex-direction:column;gap:0.25rem;z-index:10'
+        overlay.innerHTML = `
+          <button onclick="event.stopPropagation();moverItemCatalogo(${JSON.stringify(v).replace(/"/g,'&quot;')},-1)"
+            style="width:2rem;height:2rem;border-radius:50%;background:var(--primary);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.2)">
+            <span class="material-symbols-outlined" style="font-size:1rem">arrow_upward</span>
+          </button>
+          <button onclick="event.stopPropagation();moverItemCatalogo(${JSON.stringify(v).replace(/"/g,'&quot;')},1)"
+            style="width:2rem;height:2rem;border-radius:50%;background:var(--primary);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.2)">
+            <span class="material-symbols-outlined" style="font-size:1rem">arrow_downward</span>
+          </button>`
+        article.style.position = 'relative'
+        article.appendChild(overlay)
+        article.style.outline = '2px dashed var(--primary)'
+      }
+    } else {
+      const handler = isAvaliacao ? () => openAvaliacao(v) : isArtigo ? () => openArtigo(v) : () => openVideoSala(v)
+      article.addEventListener('click', handler)
+      article.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler() } })
+    }
     grid.appendChild(article)
   })
 }
@@ -2910,6 +2997,7 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
 // ============================================
 let _allQuestions = []
 let _questionsVideoMap = {}
+let _questionsModuloMap = {}
 
 async function loadQuestions() {
   const listEl = document.getElementById('questionsList')
@@ -2917,7 +3005,7 @@ async function loadQuestions() {
 
   const [{ data: questions, error }, { data: videos }] = await Promise.all([
     supabase.from('questoes_sala_de_aula').select('*').order('created_at', { ascending: false }),
-    supabase.from('videos').select('id, title').order('ordem', { ascending: true })
+    supabase.from('videos').select('id, title, categoria').order('ordem', { ascending: true })
   ])
 
   if (error) {
@@ -2932,8 +3020,26 @@ async function loadQuestions() {
 
   _allQuestions = questions || []
   _questionsVideoMap = {}
-  videos?.forEach(v => { _questionsVideoMap[v.id] = v.title })
+  _questionsModuloMap = {}
+  videos?.forEach(v => {
+    _questionsVideoMap[v.id] = v.title
+    _questionsModuloMap[v.id] = v.categoria || ''
+  })
 
+  // Popula filtro de módulo
+  const moduloEl = document.getElementById('filterQuizModulo')
+  const currentModulo = moduloEl.value
+  const modulos = [...new Set(videos?.map(v => v.categoria).filter(Boolean) || [])]
+  moduloEl.innerHTML = '<option value="">Todos os módulos</option>'
+  modulos.forEach(m => {
+    const opt = document.createElement('option')
+    opt.value = m
+    opt.textContent = m
+    if (m === currentModulo) opt.selected = true
+    moduloEl.appendChild(opt)
+  })
+
+  // Popula filtro de trilha
   const filterEl = document.getElementById('filterQuizVideo')
   const currentFilter = filterEl.value
   filterEl.innerHTML = '<option value="">Todas as trilhas</option>'
@@ -2951,9 +3057,11 @@ async function loadQuestions() {
 function renderQuestionsList() {
   const listEl = document.getElementById('questionsList')
   const videoId = document.getElementById('filterQuizVideo').value
-  const filtered = videoId
-    ? _allQuestions.filter(q => String(q.video_id) === String(videoId))
-    : _allQuestions
+  const modulo  = document.getElementById('filterQuizModulo').value
+
+  let filtered = _allQuestions
+  if (modulo)  filtered = filtered.filter(q => _questionsModuloMap[q.video_id] === modulo)
+  if (videoId) filtered = filtered.filter(q => String(q.video_id) === String(videoId))
 
   const count = filtered.length
   document.getElementById('questionsCount').textContent =
@@ -2963,16 +3071,16 @@ function renderQuestionsList() {
     listEl.innerHTML = `
       <div class="list-empty">
         <span class="material-symbols-outlined">quiz</span>
-        <p>${videoId ? 'Nenhuma pergunta nesta trilha.' : 'Nenhuma pergunta cadastrada ainda.'}</p>
+        <p>${videoId || modulo ? 'Nenhuma pergunta neste filtro.' : 'Nenhuma pergunta cadastrada ainda.'}</p>
       </div>`
     return
   }
 
   listEl.innerHTML = ''
-  filtered.forEach(q => listEl.appendChild(renderQuestionCard(q, _questionsVideoMap)))
+  filtered.forEach(q => listEl.appendChild(renderQuestionCard(q, _questionsVideoMap, _questionsModuloMap)))
 }
 
-function renderQuestionCard(q, videoMap = {}) {
+function renderQuestionCard(q, videoMap = {}, moduloMap = {}) {
   const opts = [
     { l: 'A', t: q.option_a },
     { l: 'B', t: q.option_b },
@@ -2989,7 +3097,7 @@ function renderQuestionCard(q, videoMap = {}) {
     <div class="ali-info">
       <div class="ali-meta">
         <span class="badge badge-progress">Pergunta</span>
-        ${q.category ? `<span class="badge badge-neutral">${escHtml(q.category)}</span>` : ''}
+        ${moduloMap[q.video_id] ? `<span class="badge badge-neutral"><span class="material-symbols-outlined" style="font-size:0.8rem">folder</span>${escHtml(moduloMap[q.video_id])}</span>` : ''}
         ${videoMap[q.video_id] ? `<span class="badge badge-tag"><span class="material-symbols-outlined">play_circle</span>${escHtml(videoMap[q.video_id])}</span>` : ''}
       </div>
       <h4 class="ali-title">${escHtml(q.question)}</h4>
@@ -3031,6 +3139,10 @@ let editingQuestionId = null
 
 document.getElementById('btnAddQuiz').addEventListener('click', () => openQuizModal())
 document.getElementById('filterQuizVideo')?.addEventListener('change', renderQuestionsList)
+document.getElementById('filterQuizModulo')?.addEventListener('change', () => {
+  document.getElementById('filterQuizVideo').value = ''
+  renderQuestionsList()
+})
 document.getElementById('closeModalQuiz').addEventListener('click', closeQuizModal)
 document.getElementById('cancelQuiz').addEventListener('click', closeQuizModal)
 
@@ -3819,10 +3931,10 @@ document.getElementById('formPerfil').addEventListener('submit', async e => {
 
   if (file) {
     const ext  = file.name.split('.').pop().toLowerCase()
-    const path = `${currentUser.id}/avatar.${ext}`
+    const path = `${currentUser.id}/avatar_${Date.now()}.${ext}`
     const { error: uploadErr } = await supabase.storage
       .from('avatars')
-      .upload(path, file, { upsert: true, contentType: file.type })
+      .upload(path, file, { contentType: file.type })
 
     if (uploadErr) {
       errorEl.textContent = 'Erro ao enviar foto: ' + uploadErr.message
@@ -3831,7 +3943,7 @@ document.getElementById('formPerfil').addEventListener('submit', async e => {
     }
 
     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-    foto = urlData.publicUrl + '?t=' + Date.now()
+    foto = urlData.publicUrl
   } else {
     const { data: cur } = await supabase.from('users').select('foto').eq('id', currentUser.id).maybeSingle()
     foto = cur?.foto || null
@@ -3846,6 +3958,7 @@ document.getElementById('formPerfil').addEventListener('submit', async e => {
   if (error) {
     errorEl.textContent = 'Erro: ' + error.message
   } else {
+    localStorage.removeItem('eduflow-profile-' + currentUser.id)
     document.getElementById('modalPerfil').classList.remove('open')
     await loadProfile()
   }
@@ -4625,6 +4738,7 @@ async function loadAdminTrilhas() {
         <span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:999px;background:${t.visivel ? 'var(--primary-soft)' : 'var(--surface)'};color:${t.visivel ? 'var(--primary)' : 'var(--text-secondary)'}">${t.visivel ? 'Visível' : 'Oculta'}</span>
       </div>
       <div style="display:flex;gap:0.4rem;flex-shrink:0">
+        <button class="btn-icon" onclick="openSequenciaTrilha('${t.id}','${escHtml(t.nome)}')" title="Gerenciar sequência"><span class="material-symbols-outlined">reorder</span></button>
         <button class="btn-icon" onclick="editTrilha(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="Editar"><span class="material-symbols-outlined">edit</span></button>
         <button class="btn-icon" onclick="deleteTrilha('${t.id}','${escHtml(t.nome)}')" title="Excluir" style="color:var(--error)"><span class="material-symbols-outlined">delete</span></button>
       </div>`
@@ -4739,4 +4853,165 @@ document.getElementById('formTrilha')?.addEventListener('submit', async e => {
   if (error) { errorEl.textContent = 'Erro: ' + error.message; return }
   closeTrilhaModal()
   loadAdminTrilhas()
+})
+
+// ============================================
+// ADMIN — SEQUÊNCIA DA TRILHA
+// ============================================
+let _sequenciaTrilhaId = null
+let _dragSrcEl = null
+
+const SEQ_ICONS  = { video: 'play_circle', artigo: 'article', avaliacao: 'quiz', documento: 'picture_as_pdf' }
+const SEQ_LABELS = { video: 'Vídeo', artigo: 'Artigo', avaliacao: 'Avaliação', documento: 'Documento · opcional' }
+
+window.openSequenciaTrilha = async function(trilhaId, trilhaNome) {
+  _sequenciaTrilhaId = trilhaId
+  document.getElementById('modalSequenciaTrilhaTitulo').textContent = `Sequência — ${trilhaNome}`
+  document.getElementById('modalSequenciaTrilha').classList.add('open')
+  await Promise.all([loadSequenciaTrilha(), loadAvaliacoesParaAdicionar()])
+}
+
+async function loadSequenciaTrilha() {
+  const listaEl = document.getElementById('sequenciaLista')
+  listaEl.innerHTML = '<p style="font-size:0.82rem;color:var(--text-secondary)">Carregando...</p>'
+
+  const { data } = await supabase
+    .from('trilha_conteudo')
+    .select('*')
+    .eq('trilha_id', _sequenciaTrilhaId)
+    .order('ordem', { ascending: true })
+
+  if (!data?.length) {
+    listaEl.innerHTML = '<p style="font-size:0.82rem;color:var(--text-secondary)">Nenhum conteúdo na sequência ainda.</p>'
+    return
+  }
+
+  const videoIds  = data.filter(d => d.tipo === 'video').map(d => d.item_id)
+  const artigoIds = data.filter(d => d.tipo === 'artigo').map(d => d.item_id)
+  const avIds     = data.filter(d => d.tipo === 'avaliacao').map(d => d.item_id)
+  const docIds    = data.filter(d => d.tipo === 'documento').map(d => d.item_id)
+
+  const [{ data: vids }, { data: arts }, { data: avs }, { data: docs }] = await Promise.all([
+    videoIds.length  ? supabase.from('videos').select('id, title').in('id', videoIds)    : Promise.resolve({ data: [] }),
+    artigoIds.length ? supabase.from('artigos').select('id, titulo').in('id', artigoIds) : Promise.resolve({ data: [] }),
+    avIds.length     ? supabase.from('avaliacoes').select('id, titulo').in('id', avIds)  : Promise.resolve({ data: [] }),
+    docIds.length    ? supabase.from('documentos').select('id, title').in('id', docIds)  : Promise.resolve({ data: [] }),
+  ])
+
+  const nameMap = {}
+  vids?.forEach(v  => nameMap[`video_${v.id}`]      = v.title)
+  arts?.forEach(a  => nameMap[`artigo_${a.id}`]     = a.titulo)
+  avs?.forEach(av  => nameMap[`avaliacao_${av.id}`] = av.titulo)
+  docs?.forEach(d  => nameMap[`documento_${d.id}`]  = d.title)
+
+  listaEl.innerHTML = ''
+  data.forEach((item, index) => {
+    const nome = nameMap[`${item.tipo}_${item.item_id}`] || '—'
+    const div = document.createElement('div')
+    div.className = 'seq-item'
+    div.draggable = true
+    div.dataset.id = item.id
+    div.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border:1px solid var(--outline-var);border-radius:var(--r-sm);background:var(--surface);cursor:grab;transition:opacity 0.15s,box-shadow 0.15s'
+    div.innerHTML = `
+      <span class="material-symbols-outlined" style="color:var(--text-secondary);font-size:1.2rem;flex-shrink:0;cursor:grab">drag_indicator</span>
+      <span style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);min-width:1.25rem;text-align:center" data-num>${index + 1}</span>
+      <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.1rem;flex-shrink:0">${SEQ_ICONS[item.tipo]}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(nome)}</div>
+        <div style="font-size:0.72rem;color:var(--text-secondary)">${SEQ_LABELS[item.tipo] || item.tipo}</div>
+      </div>
+      <button class="btn-icon" style="color:var(--error);flex-shrink:0" onclick="removerItemSequencia(${item.id})" title="Remover">
+        <span class="material-symbols-outlined" style="font-size:1rem">delete</span>
+      </button>`
+
+    div.addEventListener('dragstart', e => {
+      _dragSrcEl = div
+      e.dataTransfer.effectAllowed = 'move'
+      setTimeout(() => { div.style.opacity = '0.4' }, 0)
+    })
+    div.addEventListener('dragend', () => {
+      div.style.opacity = ''
+      listaEl.querySelectorAll('.seq-item').forEach(el => el.style.boxShadow = '')
+    })
+    div.addEventListener('dragover', e => {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      listaEl.querySelectorAll('.seq-item').forEach(el => el.style.boxShadow = '')
+      if (div !== _dragSrcEl) div.style.boxShadow = '0 0 0 2px var(--primary)'
+    })
+    div.addEventListener('dragleave', () => { div.style.boxShadow = '' })
+    div.addEventListener('drop', async e => {
+      e.preventDefault()
+      if (!_dragSrcEl || _dragSrcEl === div) return
+      div.style.boxShadow = ''
+
+      const allItems = [...listaEl.querySelectorAll('.seq-item')]
+      const srcIdx  = allItems.indexOf(_dragSrcEl)
+      const destIdx = allItems.indexOf(div)
+
+      if (srcIdx < destIdx) div.after(_dragSrcEl)
+      else div.before(_dragSrcEl)
+
+      // Renumera visualmente
+      listaEl.querySelectorAll('[data-num]').forEach((el, i) => { el.textContent = i + 1 })
+
+      // Salva nova ordem
+      const novosIds = [...listaEl.querySelectorAll('.seq-item')].map(el => Number(el.dataset.id))
+      await Promise.all(novosIds.map((id, i) =>
+        supabase.from('trilha_conteudo').update({ ordem: i }).eq('id', id)
+      ))
+    })
+
+    listaEl.appendChild(div)
+  })
+}
+
+async function loadAvaliacoesParaAdicionar() {
+  const [{ data: todas }, { data: jaAdicionadas }] = await Promise.all([
+    supabase.from('avaliacoes').select('id, titulo').order('titulo', { ascending: true }),
+    supabase.from('trilha_conteudo').select('item_id').eq('trilha_id', _sequenciaTrilhaId).eq('tipo', 'avaliacao')
+  ])
+  const jaIds = new Set((jaAdicionadas || []).map(r => r.item_id))
+  const disponiveis = (todas || []).filter(av => !jaIds.has(av.id))
+
+  const sel = document.getElementById('selectAvaliacaoAdd')
+  sel.innerHTML = '<option value="">Selecionar avaliação...</option>'
+  disponiveis.forEach(av => {
+    const opt = document.createElement('option')
+    opt.value = av.id
+    opt.textContent = av.titulo
+    sel.appendChild(opt)
+  })
+}
+
+window.removerItemSequencia = async function(id) {
+  if (!confirm('Remover este item da sequência da trilha?')) return
+  await supabase.from('trilha_conteudo').delete().eq('id', id)
+  await Promise.all([loadSequenciaTrilha(), loadAvaliacoesParaAdicionar()])
+}
+
+document.getElementById('closeModalSequenciaTrilha')?.addEventListener('click', () => {
+  document.getElementById('modalSequenciaTrilha').classList.remove('open')
+})
+
+document.getElementById('btnAddAvaliacaoSequencia')?.addEventListener('click', async () => {
+  const avId = document.getElementById('selectAvaliacaoAdd').value
+  if (!avId) return
+
+  const { data } = await supabase
+    .from('trilha_conteudo')
+    .select('ordem')
+    .eq('trilha_id', _sequenciaTrilhaId)
+    .order('ordem', { ascending: false })
+    .limit(1)
+
+  const maxOrdem = data?.[0]?.ordem ?? -1
+  await supabase.from('trilha_conteudo').insert({
+    trilha_id: _sequenciaTrilhaId,
+    tipo: 'avaliacao',
+    item_id: Number(avId),
+    ordem: maxOrdem + 1,
+    obrigatorio: true
+  })
+  await Promise.all([loadSequenciaTrilha(), loadAvaliacoesParaAdicionar()])
 })

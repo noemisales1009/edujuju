@@ -382,9 +382,15 @@
 
       <!-- ======== PAGE: Catálogo de Trilhas ======== -->
       <section class="page" id="page-catalogo">
-        <div class="page-header">
-          <h1>Trilhas de Aprendizado</h1>
-          <p>Continue seu desenvolvimento escolhendo uma de suas trilhas focadas.</p>
+        <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.75rem">
+          <div>
+            <h1>Trilhas de Aprendizado</h1>
+            <p>Continue seu desenvolvimento escolhendo uma de suas trilhas focadas.</p>
+          </div>
+          <button id="btnReordenarCatalogo" data-page="admin" style="display:none;align-items:center;gap:0.4rem;padding:0.45rem 0.9rem;border:1.5px solid var(--primary);border-radius:var(--radius);background:transparent;color:var(--primary);font-size:0.82rem;font-weight:600;cursor:pointer">
+            <span class="material-symbols-outlined" style="font-size:1rem">swap_vert</span>
+            <span id="btnReordenarLabel">Reordenar</span>
+          </button>
         </div>
 
         <div class="cards-grid" id="catalogoGrid">
@@ -643,6 +649,9 @@
             </button>
           </div>
           <div class="tab-filters">
+            <select class="filter-select" id="filterQuizModulo">
+              <option value="">Todos os módulos</option>
+            </select>
             <select class="filter-select" id="filterQuizVideo">
               <option value="">Todas as trilhas</option>
             </select>
@@ -778,6 +787,31 @@
                 <button type="submit" class="btn-primary" id="saveTrilhaBtn">Salvar Trilha</button>
               </div>
             </form>
+          </div>
+        </div>
+
+        <!-- Modal: Sequência da Trilha -->
+        <div class="modal-overlay" id="modalSequenciaTrilha">
+          <div class="modal-card" style="max-width:40rem">
+            <div class="modal-header">
+              <h2 id="modalSequenciaTrilhaTitulo">Sequência da Trilha</h2>
+              <button class="btn-icon" id="closeModalSequenciaTrilha"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div style="padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:0.75rem">
+              <p style="font-size:0.8rem;color:var(--text-secondary);margin:0">Defina a ordem em que o aluno verá o conteúdo desta trilha. Documentos são opcionais e não travam o progresso.</p>
+              <div id="sequenciaLista" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+              <div style="border-top:1px solid var(--outline-var);padding-top:1rem;display:flex;flex-direction:column;gap:0.5rem">
+                <p style="font-size:0.78rem;font-weight:600;margin:0;color:var(--text-secondary)">ADICIONAR AVALIAÇÃO</p>
+                <div style="display:flex;gap:0.5rem">
+                  <select id="selectAvaliacaoAdd" class="filter-select" style="flex:1">
+                    <option value="">Selecionar avaliação...</option>
+                  </select>
+                  <button class="btn-primary" id="btnAddAvaliacaoSequencia" style="white-space:nowrap">
+                    <span class="material-symbols-outlined">add</span> Adicionar
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1078,6 +1112,7 @@
                 <span id="avaliacaoImagemLabelText">Clique para escolher uma imagem</span>
                 <input type="file" id="avaliacaoImagemFile" accept="image/*" style="display:none">
               </label>
+              <p style="font-size:0.72rem;color:var(--text-secondary);margin:0.25rem 0 0">📐 Tamanho ideal: <strong>800 × 450 px</strong> (proporção 16:9) · JPG ou PNG · máx. 2 MB</p>
               <img id="avaliacaoImagemPreview" src="" alt="" style="display:none;max-height:140px;border-radius:8px;margin-top:0.5rem;object-fit:cover;width:100%">
             </div>
             <div class="form-group">
