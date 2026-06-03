@@ -134,6 +134,18 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
     errorEl.textContent = 'Selecione seu setor e sua função.'
     return
   }
+  if (!email) {
+    errorEl.textContent = 'Preencha seu email.'
+    return
+  }
+  if (!password) {
+    errorEl.textContent = 'Preencha sua senha.'
+    return
+  }
+  if (password.length < 6) {
+    errorEl.textContent = 'A senha deve ter no mínimo 6 caracteres.'
+    return
+  }
 
   setLoading(btn, true, 'Criando conta...')
   errorEl.textContent = ''
