@@ -825,28 +825,38 @@ function setQuizBtnLabel() {
   else                confirmBtn.textContent = 'Concluir Trilha →'
 }
 
+function isItemDone(item) {
+  if (!item) return false
+  return item._tipo === 'avaliacao'
+    ? getAvaliacaoProgress(item.id) === 'completed'
+    : getVideoProgress(item.id) === 'completed'
+}
+
 function renderModuleList(currentId) {
   const list = document.getElementById('salaModuleList')
   if (!list) return
   list.innerHTML = salaItems.map((item, i) => {
-    const isAv      = item._tipo === 'avaliacao'
-    const isCurrent = !isAv && item.id === currentId
-    const isDone    = isAv
-      ? getAvaliacaoProgress(item.id) === 'completed'
-      : getVideoProgress(item.id) === 'completed'
-    const canNavigate = isCurrent || isDone || isAv
+    const isAv        = item._tipo === 'avaliacao'
+    const isCurrent   = !isAv && item.id === currentId
+    const isDone      = isItemDone(item)
+    // Libera se: é o primeiro, ou o anterior está concluído, ou o próprio já está concluído
+    const anteriorOk  = i === 0 || isItemDone(salaItems[i - 1])
+    const canNavigate = isCurrent || isDone || anteriorOk
     const title  = isAv ? item.titulo : item.title
-    const icon   = isAv
-      ? (isDone ? 'assignment_turned_in' : 'assignment')
-      : (isCurrent ? 'play_circle' : isDone ? 'check_circle' : 'lock')
-    const cls    = isCurrent ? 'item-current' : isDone ? 'item-done' : isAv ? '' : 'item-locked'
-    const action = isAv
-      ? `window.abrirAvaliacaoSala(${item.id})`
-      : canNavigate ? `window.playSalaVideo(${item.id})` : ''
+    const icon   = isDone
+      ? (isAv ? 'assignment_turned_in' : 'check_circle')
+      : isCurrent ? 'play_circle'
+      : canNavigate ? (isAv ? 'assignment' : 'play_circle')
+      : 'lock'
+    const cls    = isCurrent ? 'item-current' : isDone ? 'item-done' : canNavigate ? '' : 'item-locked'
+    const color  = isDone ? 'color:var(--primary)' : isAv && canNavigate ? 'color:var(--secondary)' : ''
+    const action = canNavigate
+      ? (isAv ? `window.abrirAvaliacaoSala(${item.id})` : `window.playSalaVideo(${item.id})`)
+      : ''
     return `<li class="module-item ${cls}"
       style="cursor:${canNavigate ? 'pointer' : 'default'}"
       ${action ? `onclick="${action}"` : ''}>
-      <span class="material-symbols-outlined" style="${isDone ? 'color:var(--primary)' : isAv ? 'color:var(--secondary)' : ''}">${icon}</span>
+      <span class="material-symbols-outlined" style="${color}">${icon}</span>
       <span>${i + 1}. ${escHtml(title)}</span>
       ${isCurrent ? '<span class="pulse-dot"></span>' : ''}
     </li>`
