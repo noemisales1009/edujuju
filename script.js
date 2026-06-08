@@ -544,16 +544,23 @@ async function renderSalaVideo(video, cachedRespostas = null) {
     document.getElementById('conclusaoAulaCard')?.remove()
     renderConclusaoCard(video.id)
     quizResolved = true
-    const nextVideo2 = salaVideos[idx + 1]
+    const _salaIdx2  = salaItems.findIndex(it => it._tipo === 'video' && it.id === video.id)
+    const nextItem2  = _salaIdx2 >= 0 ? (salaItems[_salaIdx2 + 1] || null) : null
     const nextCard2  = document.getElementById('nextCard')
-    if (nextVideo2 && nextCard2) {
+    if (nextItem2 && nextCard2) {
+      const _isAv2 = nextItem2._tipo === 'avaliacao'
       nextCard2.style.display = ''
       const nt = document.getElementById('nextTitle')
       const nd = document.getElementById('nextDesc')
       const nb = document.getElementById('nextBtn')
-      if (nt) nt.textContent = nextVideo2.title
-      if (nd) nd.textContent = nextVideo2.description || ''
-      if (nb) nb.onclick = () => { currentVideoId = nextVideo2.id; renderSalaVideo(nextVideo2) }
+      if (nt) nt.textContent = _isAv2 ? nextItem2.titulo : nextItem2.title
+      if (nd) nd.textContent = _isAv2 ? (nextItem2.descricao || '') : (nextItem2.description || '')
+      if (nb) {
+        nb.innerHTML = `${_isAv2 ? 'Ir para Avaliação' : 'Ir para Próxima Aula'} <span class="material-symbols-outlined">arrow_forward</span>`
+        nb.onclick = _isAv2
+          ? () => window.abrirAvaliacaoSala(nextItem2.id)
+          : () => { currentVideoId = nextItem2.id; renderSalaVideo(nextItem2) }
+      }
     } else if (nextCard2) {
       nextCard2.style.display = 'none'
     }
@@ -585,18 +592,22 @@ async function renderSalaVideo(video, cachedRespostas = null) {
   await renderSalaQuiz(video.id, cachedRespostas)
   renderModuleList(video.id)
 
-  const nextVideo = salaVideos[idx + 1]
+  const _salaIdx  = salaItems.findIndex(it => it._tipo === 'video' && it.id === video.id)
+  const nextItem  = _salaIdx >= 0 ? (salaItems[_salaIdx + 1] || null) : null
   const nextCard  = document.getElementById('nextCard')
-  if (nextVideo && nextCard) {
+  if (nextItem && nextCard) {
+    const _isAv = nextItem._tipo === 'avaliacao'
     nextCard.style.display = ''
     const nextTitle = document.getElementById('nextTitle')
     const nextDesc  = document.getElementById('nextDesc')
     const nextBtn   = document.getElementById('nextBtn')
-    if (nextTitle) nextTitle.textContent = nextVideo.title
-    if (nextDesc)  nextDesc.textContent  = nextVideo.description || ''
-    if (nextBtn)   nextBtn.onclick = () => {
-      currentVideoId = nextVideo.id
-      renderSalaVideo(nextVideo)
+    if (nextTitle) nextTitle.textContent = _isAv ? nextItem.titulo : nextItem.title
+    if (nextDesc)  nextDesc.textContent  = _isAv ? (nextItem.descricao || '') : (nextItem.description || '')
+    if (nextBtn) {
+      nextBtn.innerHTML = `${_isAv ? 'Ir para Avaliação' : 'Ir para Próxima Aula'} <span class="material-symbols-outlined">arrow_forward</span>`
+      nextBtn.onclick = _isAv
+        ? () => window.abrirAvaliacaoSala(nextItem.id)
+        : () => { currentVideoId = nextItem.id; renderSalaVideo(nextItem) }
     }
   } else if (nextCard) {
     nextCard.style.display = 'none'
@@ -818,11 +829,12 @@ function showQuizQuestion(index) {
 }
 
 function setQuizBtnLabel() {
-  const hasMore  = _quizIndex < _quizQuestions.length - 1
-  const isLastV  = salaVideos.findIndex(v => v.id === currentVideoId) >= salaVideos.length - 1
-  if (hasMore)        confirmBtn.textContent = 'Próxima Pergunta →'
-  else if (!isLastV)  confirmBtn.textContent = 'Próxima Aula →'
-  else                confirmBtn.textContent = 'Concluir Trilha →'
+  const hasMore    = _quizIndex < _quizQuestions.length - 1
+  const curSalaIdx = salaItems.findIndex(it => it._tipo === 'video' && it.id === currentVideoId)
+  const isLastItem = curSalaIdx < 0 || curSalaIdx >= salaItems.length - 1
+  if (hasMore)          confirmBtn.textContent = 'Próxima Pergunta →'
+  else if (!isLastItem) confirmBtn.textContent = 'Próxima Aula →'
+  else                  confirmBtn.textContent = 'Concluir Trilha →'
 }
 
 function isItemDone(item) {
@@ -889,10 +901,15 @@ async function handleQuiz() {
     if (_quizIndex < _quizQuestions.length - 1) {
       showQuizQuestion(_quizIndex + 1)
     } else {
-      const idx  = salaVideos.findIndex(v => v.id === currentVideoId)
-      const next = salaVideos[idx + 1]
-      if (next) { currentVideoId = next.id; await renderSalaVideo(next) }
-      else window.showPage('catalogo')
+      const _curIdx = salaItems.findIndex(it => it._tipo === 'video' && it.id === currentVideoId)
+      const _nextIt = _curIdx >= 0 ? (salaItems[_curIdx + 1] || null) : null
+      if (_nextIt?._tipo === 'avaliacao') {
+        window.abrirAvaliacaoSala(_nextIt.id)
+      } else if (_nextIt) {
+        currentVideoId = _nextIt.id; await renderSalaVideo(_nextIt)
+      } else {
+        window.showPage('catalogo')
+      }
     }
     return
   }
@@ -1327,9 +1344,8 @@ async function loadPerfilConquistas() {
 }
 
 // ============================================
-// DOCUMENTOS — flipbook viewer + admin
+// DOCUMENTOS — viewer + admin
 // ============================================
-let _pageFlipInstance = null
 
 // PDF.js worker
 function initPDFWorker() {
@@ -1401,11 +1417,6 @@ async function openFlipbook(fileUrl, title) {
   pageInfo.textContent = ''
   modal.classList.add('open')
 
-  if (_pageFlipInstance) {
-    try { _pageFlipInstance.destroy() } catch (_) {}
-    _pageFlipInstance = null
-  }
-
   pageInfo.textContent = ''
   document.getElementById('flipPrev').style.display = 'none'
   document.getElementById('flipNext').style.display = 'none'
@@ -1466,16 +1477,16 @@ async function openFlipbook(fileUrl, title) {
     const firstPage = await pdf.getPage(1)
     const flipNav = document.getElementById('flipNav')
 
-    if (isMobile) {
-      // Celular: uma página por vez com navegação
+    {
+      // Todas as telas: uma página por vez com navegação
       const DPR = Math.min(window.devicePixelRatio || 1, 2)
-      const availW = window.innerWidth - 16
+      const availW = isMobile ? window.innerWidth - 16 : Math.min(window.innerWidth - 48, 900)
       const vpRef = firstPage.getViewport({ scale: 1 })
       const SCALE = (availW / vpRef.width) * DPR
 
       let currentPageNum = 1
       const canvas = document.createElement('canvas')
-      canvas.style.cssText = `width:100%;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.6);display:block`
+      canvas.style.cssText = `width:100%;max-width:${availW}px;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.6);display:block`
       container.style.cssText = `display:flex;flex-direction:column;align-items:center;width:100%`
       container.appendChild(canvas)
 
@@ -1507,62 +1518,6 @@ async function openFlipbook(fileUrl, title) {
 
       loading.style.display = 'none'
       container.style.display = 'flex'
-    } else {
-      // Desktop: flipbook com virada de página
-      const availH = window.innerHeight - 140
-      const vpRef = firstPage.getViewport({ scale: 1 })
-      const SCALE = Math.min(availH / vpRef.height, 1.4)
-      const vp = firstPage.getViewport({ scale: SCALE })
-      const W = Math.round(vp.width)
-      const H = Math.round(vp.height)
-
-      const book = document.createElement('div')
-      book.id = 'flipbookEl'
-      book.style.cssText = `width:${W * 2}px;height:${H}px;max-width:calc(100vw - 32px)`
-      container.appendChild(book)
-
-      if (!window.St?.PageFlip) throw new Error('Biblioteca de flipbook não carregada.')
-      const pageFlip = new St.PageFlip(book, {
-        width: W, height: H,
-        size: 'fixed',
-        showCover: true,
-        mobileScrollSupport: false,
-        drawShadow: true,
-        flippingTime: 600,
-      })
-
-      const canvases = []
-      for (let i = 1; i <= numPages; i++) {
-        if (msg) msg.textContent = `Renderizando página ${i} de ${numPages}...`
-        if (bar) bar.style.width = Math.round(i / numPages * 100) + '%'
-        if (pct) pct.textContent = Math.round(i / numPages * 100) + '%'
-        const page = await pdf.getPage(i)
-        const viewport = page.getViewport({ scale: SCALE })
-        const canvas = document.createElement('canvas')
-        canvas.width = W
-        canvas.height = H
-        await page.render({ canvasContext: canvas.getContext('2d', { willReadFrequently: true }), viewport }).promise
-        const wrap = document.createElement('div')
-        wrap.className = 'page'
-        wrap.style.cssText = `width:${W}px;height:${H}px;overflow:hidden;background:#fff`
-        wrap.appendChild(canvas)
-        canvases.push(wrap)
-      }
-
-      pageFlip.loadFromHTML(canvases)
-      _pageFlipInstance = pageFlip
-
-      pageFlip.on('flip', e => {
-        pageInfo.textContent = `Página ${e.data + 1} de ${numPages}`
-      })
-      pageInfo.textContent = `Página 1 de ${numPages}`
-
-      flipNav.style.display = 'flex'
-      document.getElementById('flipPrev').onclick = () => pageFlip.flipPrev()
-      document.getElementById('flipNext').onclick = () => pageFlip.flipNext()
-
-      loading.style.display = 'none'
-      container.style.display = 'flex'
     }
   } catch (err) {
     document.getElementById('flipNav').style.display = 'none'
@@ -1582,10 +1537,6 @@ document.getElementById('closeFlipbook').addEventListener('click', closeFlipbook
 
 function closeFlipbookModal() {
   document.getElementById('modalFlipbook').classList.remove('open')
-  if (_pageFlipInstance) {
-    try { _pageFlipInstance.destroy() } catch (_) {}
-    _pageFlipInstance = null
-  }
   const container = document.getElementById('flipbookContainer')
   const loading   = document.getElementById('flipbookLoading')
   container.innerHTML = ''
@@ -2499,6 +2450,19 @@ async function openAvaliacao(av) {
       console.log('[Avaliação] Nota salva com sucesso:', pct + '%', savedData)
       logAudit('avaliacao_concluida', av.titulo || `Avaliação ID: ${av.id}`, { nota_pct: pct })
     }
+    const avSalaIdx = salaItems.findIndex(it => it._tipo === 'avaliacao' && it.id === av.id)
+    const nextSalaItem = avSalaIdx >= 0 ? (salaItems[avSalaIdx + 1] || null) : null
+    let nextBtnHtml = ''
+    if (nextSalaItem) {
+      const isNextAv = nextSalaItem._tipo === 'avaliacao'
+      const nextLabel = isNextAv ? 'Ir para Avaliação' : 'Ir para Próxima Aula'
+      nextBtnHtml = `<button class="btn-primary" id="avNextBtn" style="margin-top:1.5rem;display:inline-flex;align-items:center;gap:0.5rem">
+        ${escHtml(nextLabel)} <span class="material-symbols-outlined">arrow_forward</span>
+      </button>`
+    } else {
+      nextBtnHtml = `<button class="btn-outline" id="avVoltarBtn" style="margin-top:1.5rem">← Voltar para Sala de Aula</button>`
+    }
+
     conteudo.innerHTML = `
       <div style="text-align:center;padding:2rem">
         <span class="material-symbols-outlined icon-filled" style="font-size:3rem;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'}">
@@ -2509,7 +2473,25 @@ async function openAvaliacao(av) {
         <p style="margin-top:1rem;font-weight:600;color:${pct >= 70 ? 'var(--success)' : 'var(--error)'}">
           ${pct >= 70 ? 'Parabéns! Avaliação concluída com sucesso.' : 'Avaliação concluída. Continue estudando!'}
         </p>
+        ${nextBtnHtml}
       </div>`
+
+    if (nextSalaItem) {
+      document.getElementById('avNextBtn')?.addEventListener('click', () => {
+        if (nextSalaItem._tipo === 'avaliacao') {
+          window.abrirAvaliacaoSala(nextSalaItem.id)
+        } else {
+          window.showPage('sala')
+          const vid = salaVideos.find(v => v.id === nextSalaItem.id)
+          if (vid) { currentVideoId = vid.id; renderSalaVideo(vid) }
+        }
+      })
+    } else {
+      document.getElementById('avVoltarBtn')?.addEventListener('click', () => {
+        window.showPage('sala')
+        renderModuleList(currentVideoId)
+      })
+    }
   }
 
   renderQ()

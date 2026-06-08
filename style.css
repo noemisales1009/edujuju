@@ -841,6 +841,21 @@ ul { list-style: none; }
 .quiz-opt.wrong span   { color: var(--error); }
 .quiz-opt.disabled { pointer-events: none; }
 
+/* Avaliação: usa quiz-option (mesmo visual, estados correto/errado) */
+.quiz-option {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.75rem 1rem; border-radius: var(--r-md);
+  border: 1.5px solid var(--border); cursor: pointer;
+  transition: border-color var(--ease), background var(--ease);
+}
+.quiz-option:hover { border-color: var(--primary); background: var(--primary-soft); }
+.quiz-option input[type="radio"] { margin-top: 0.2rem; accent-color: var(--primary); flex-shrink: 0; }
+.quiz-option span { font-size: 0.9375rem; line-height: 1.5; }
+.quiz-option.correct { border-color: var(--secondary); background: var(--secondary-soft); }
+.quiz-option.correct span { color: var(--secondary); font-weight: 600; }
+.quiz-option.wrong   { border-color: var(--error); background: var(--error-soft); }
+.quiz-option.wrong span   { color: var(--error); }
+
 .quiz-feedback {
   margin-top: 0.75rem;
   padding: 0.625rem 0.875rem;
