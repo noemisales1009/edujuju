@@ -212,7 +212,7 @@ document.querySelectorAll('.settings-logout').forEach(btn => btn.addEventListene
 // ============================================
 function applyProfileToUI(profile, email) {
   const displayName = profile.name || email?.split('@')[0] || ''
-  const roleLabel   = profile.access_level === 'super' ? 'Super Admin' : profile.access_level === 'adm' ? 'Administrador' : 'Estudante de Design UI/UX'
+  const roleLabel   = profile.access_level === 'super' ? 'Super Admin' : profile.access_level === 'adm' ? 'Administrador' : (profile.role || 'Colaborador')
 
   document.querySelectorAll('.perfil-name').forEach(el => el.textContent = displayName)
   document.querySelectorAll('.perfil-role').forEach(el => el.textContent = roleLabel)
