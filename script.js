@@ -11,6 +11,8 @@ let currentUser = null
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user
+    // TOKEN_REFRESHED: só atualiza o usuário, não reinicia a UI
+    if (event === 'TOKEN_REFRESHED') return
     const meta = currentUser.user_metadata || {}
     if (event === 'SIGNED_IN') {
       supabase.from('registro_acesso').insert({ user_id: currentUser.id })
@@ -33,7 +35,6 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     applyCachedProfile(currentUser.id)
     showApp()
     try { await loadProfile() } catch (e) { console.warn('[Auth] loadProfile error:', e) }
-    await syncLocalProgress(currentUser.id)
     logAudit('login', 'Entrou na plataforma')
   } else {
     currentUser = null
@@ -200,7 +201,8 @@ function switchTab(tab) {
 // ============================================
 // LOGOUT
 // ============================================
-async function doLogout() {
+async function doLogout(e) {
+  if (e) e.preventDefault()
   if (currentUser) {
     try { localStorage.removeItem('eduflow-profile-' + currentUser.id) } catch {}
   }
@@ -4156,7 +4158,9 @@ async function syncLocalProgress(userId) {
 async function loadHome() {
   if (!currentUser) return
   const userId = currentUser.id
+  try {
 
+  await syncLocalProgress(userId)
   const [{ data: videos }, { data: artigos }, { data: avaliacoes }, { data: trilhasData }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, categoria, youtube_url, description').eq('visivel', true).order('ordem', { ascending: true }),
     supabase.from('artigos').select('id, titulo, descricao, imagem_url, topics, categoria').eq('visivel', true).order('ordem', { ascending: true }),
@@ -4176,8 +4180,6 @@ async function loadHome() {
   ]
   if (!_catalogItems.length) _catalogItems = allItems
 
-  // Sincroniza progresso do Supabase para localStorage (garante consistência entre dispositivos)
-  if (userId) await syncLocalProgress(userId)
 
   // --- Progresso geral (inclui vídeos, artigos e avaliações) ---
   const totalItems = allItems.length
@@ -4369,6 +4371,11 @@ async function loadHome() {
     }
   }
 
+  } catch (err) {
+    console.error('[loadHome] erro:', err)
+    const rankingEl = document.getElementById('homeRanking')
+    if (rankingEl) rankingEl.innerHTML = '<p style="padding:1rem;color:var(--text-secondary);font-size:0.875rem">Erro ao carregar dados.</p>'
+  }
 }
 
 // ============================================
