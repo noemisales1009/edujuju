@@ -33,6 +33,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     applyCachedProfile(currentUser.id)
     showApp()
     try { await loadProfile() } catch (e) { console.warn('[Auth] loadProfile error:', e) }
+    await syncLocalProgress(currentUser.id)
     logAudit('login', 'Entrou na plataforma')
   } else {
     currentUser = null
@@ -4121,6 +4122,35 @@ async function checkTrilhaConcluidaEConfetti(videoId) {
 }
 
 // ============================================
+// SYNC — garante que localStorage reflete o banco
+// ============================================
+async function syncLocalProgress(userId) {
+  if (!userId) return
+  const { data: progressData } = await supabase
+    .from('progresso_usuario')
+    .select('item_id, item_tipo')
+    .eq('user_id', userId)
+    .eq('concluido', true)
+  if (progressData) {
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (
+        key.startsWith(`eduflow-prog-${userId}-`) ||
+        key.startsWith(`eduflow-artigo-${userId}-`) ||
+        key.startsWith(`eduflow-av-${userId}-`)
+      )) keysToRemove.push(key)
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+    for (const p of progressData) {
+      if (p.item_tipo === 'video')      localStorage.setItem(`eduflow-prog-${userId}-${p.item_id}`, 'completed')
+      else if (p.item_tipo === 'artigo') localStorage.setItem(`eduflow-artigo-${userId}-${p.item_id}`, 'completed')
+      else if (p.item_tipo === 'avaliacao') localStorage.setItem(`eduflow-av-${userId}-${p.item_id}`, 'completed')
+    }
+  }
+}
+
+// ============================================
 // HOME — carrega dados da página inicial
 // ============================================
 async function loadHome() {
@@ -4147,19 +4177,7 @@ async function loadHome() {
   if (!_catalogItems.length) _catalogItems = allItems
 
   // Sincroniza progresso do Supabase para localStorage (garante consistência entre dispositivos)
-  if (!userId) return
-  const { data: progressData } = await supabase
-    .from('progresso_usuario')
-    .select('item_id, item_tipo')
-    .eq('user_id', userId)
-    .eq('concluido', true)
-  if (progressData) {
-    for (const p of progressData) {
-      if (p.item_tipo === 'video')      localStorage.setItem(`eduflow-prog-${userId}-${p.item_id}`, 'completed')
-      else if (p.item_tipo === 'artigo') localStorage.setItem(`eduflow-artigo-${userId}-${p.item_id}`, 'completed')
-      else if (p.item_tipo === 'avaliacao') localStorage.setItem(`eduflow-av-${userId}-${p.item_id}`, 'completed')
-    }
-  }
+  if (userId) await syncLocalProgress(userId)
 
   // --- Progresso geral (inclui vídeos, artigos e avaliações) ---
   const totalItems = allItems.length
