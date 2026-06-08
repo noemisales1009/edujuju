@@ -379,7 +379,7 @@ if (confirmBtn) confirmBtn.addEventListener('click', handleQuiz)
 
 async function loadSalaDeAula() {
   const [{ data: seq }, { data: todasRespostas }] = await Promise.all([
-    supabase.from('trilha_conteudo').select('item_id, tipo').order('ordem', { ascending: true }),
+    supabase.from('trilha_conteudo').select('item_id, tipo, tem_questoes').order('ordem', { ascending: true }),
     currentUser
       ? supabase.from('respostas').select('question_id, is_correct, chosen_index').eq('user_id', currentUser.id)
       : Promise.resolve({ data: [] })
@@ -400,9 +400,11 @@ async function loadSalaDeAula() {
 
     // Monta lista na ordem da trilha_conteudo
     salaItems = seq.map(s => {
-      if (s.tipo === 'video')     return vidMap[s.item_id]
-      if (s.tipo === 'avaliacao') return avMap[s.item_id]
-      return null
+      let base = null
+      if (s.tipo === 'video')     base = vidMap[s.item_id]
+      if (s.tipo === 'avaliacao') base = avMap[s.item_id]
+      if (!base) return null
+      return { ...base, _tem_questoes: s.tem_questoes !== false }
     }).filter(Boolean)
 
     videos = salaItems.filter(i => i._tipo === 'video')
@@ -687,6 +689,35 @@ async function renderSalaQuiz(videoId, cachedRespostas = null) {
 
   // Remove card de conclusão se existir de uma aula anterior
   document.getElementById('conclusaoAulaCard')?.remove()
+
+  // Se o item está configurado como "sem questões", conclui direto sem buscar quiz
+  const _itemAtual = salaItems.find(it => it._tipo === 'video' && it.id === videoId)
+  if (_itemAtual && _itemAtual._tem_questoes === false) {
+    quizCard.style.display = 'none'
+    const watchedWrap = document.getElementById('videoWatchedWrap')
+    const watchedBtn  = document.getElementById('videoWatchedBtn')
+    renderTextoAula(_itemAtual?.texto_aula || null)
+    if (getVideoProgress(videoId) === 'completed') {
+      if (watchedWrap) watchedWrap.style.display = 'none'
+      renderConclusaoCard(videoId)
+      updateNextBtnState()
+      return
+    }
+    if (watchedWrap) watchedWrap.style.display = ''
+    if (watchedBtn) {
+      watchedBtn.textContent = 'Marcar como concluído'
+      watchedBtn.onclick = () => {
+        setVideoWatched(videoId)
+        watchedWrap.style.display = 'none'
+        setVideoProgress(videoId, 'completed')
+        setTimeout(() => checkTrilhaConcluidaEConfetti(videoId), 400)
+        renderConclusaoCard(videoId)
+        updateNextBtnState()
+      }
+    }
+    updateNextBtnState()
+    return
+  }
 
   // Busca questões e respostas em paralelo (quando não há cache)
   const [{ data: questions }, respostasResult] = await Promise.all([
@@ -2322,6 +2353,31 @@ document.getElementById('formAvaliacao')?.addEventListener('submit', async e => 
 // ============================================
 // AVALIAÇÕES — Viewer (aluno faz a prova)
 // ============================================
+
+function _avProximoBtnHtml(avId) {
+  const idx  = salaItems.findIndex(it => it._tipo === 'avaliacao' && it.id === avId)
+  const next = idx >= 0 ? (salaItems[idx + 1] || null) : null
+  if (next) {
+    const label = next._tipo === 'avaliacao' ? 'Ir para Avaliação' : 'Ir para Próxima Aula'
+    return { html: `<button class="btn-primary" id="avNextBtn" style="margin-top:1.5rem;display:inline-flex;align-items:center;gap:0.5rem">${escHtml(label)} <span class="material-symbols-outlined">arrow_forward</span></button>`, next }
+  }
+  if (salaItems.length > 0) {
+    return { html: `<button class="btn-outline" id="avVoltarBtn" style="margin-top:1.5rem">← Voltar para Sala de Aula</button>`, next: null }
+  }
+  return { html: '', next: null }
+}
+
+function _avAnexarProximo({ next }) {
+  if (next) {
+    document.getElementById('avNextBtn')?.addEventListener('click', () => {
+      if (next._tipo === 'avaliacao') { window.abrirAvaliacaoSala(next.id) }
+      else { window.showPage('sala'); const v = salaVideos.find(v => v.id === next.id); if (v) { currentVideoId = v.id; renderSalaVideo(v) } }
+    })
+  } else {
+    document.getElementById('avVoltarBtn')?.addEventListener('click', () => { window.showPage('sala'); renderModuleList(currentVideoId) })
+  }
+}
+
 function getAvaliacaoProgress(id) {
   if (!currentUser) return null
   return localStorage.getItem(`eduflow-av-${currentUser.id}-${id}`) || null
@@ -2355,12 +2411,15 @@ async function openAvaliacao(av) {
     if (notaSalva !== null && notaSalva !== undefined) {
       // Tem nota — mostra resultado sem refazer
       const cor = notaSalva >= 70 ? 'var(--success)' : notaSalva >= 50 ? 'var(--warning)' : 'var(--error)'
+      const { html: proxHtml, next: proxItem } = _avProximoBtnHtml(av.id)
       conteudo.innerHTML = `<div style="text-align:center;padding:2rem">
         <span class="material-symbols-outlined icon-filled" style="font-size:3rem;color:${cor}">check_circle</span>
         <p style="font-weight:700;font-size:1.1rem;margin-top:0.5rem;color:var(--on-surface)">Avaliação concluída!</p>
         <p style="font-size:2rem;font-weight:800;color:${cor};margin:0.5rem 0">${notaSalva}%</p>
         <p style="color:var(--text-secondary);font-size:0.85rem">${notaSalva >= 70 ? 'Parabéns! Ótimo desempenho.' : notaSalva >= 50 ? 'Bom esforço! Continue estudando.' : 'Continue se dedicando!'}</p>
+        ${proxHtml}
       </div>`
+      _avAnexarProximo({ next: proxItem })
       return
     }
     // Sem nota salva — permite refazer para registrar
@@ -2450,19 +2509,7 @@ async function openAvaliacao(av) {
       console.log('[Avaliação] Nota salva com sucesso:', pct + '%', savedData)
       logAudit('avaliacao_concluida', av.titulo || `Avaliação ID: ${av.id}`, { nota_pct: pct })
     }
-    const avSalaIdx = salaItems.findIndex(it => it._tipo === 'avaliacao' && it.id === av.id)
-    const nextSalaItem = avSalaIdx >= 0 ? (salaItems[avSalaIdx + 1] || null) : null
-    let nextBtnHtml = ''
-    if (nextSalaItem) {
-      const isNextAv = nextSalaItem._tipo === 'avaliacao'
-      const nextLabel = isNextAv ? 'Ir para Avaliação' : 'Ir para Próxima Aula'
-      nextBtnHtml = `<button class="btn-primary" id="avNextBtn" style="margin-top:1.5rem;display:inline-flex;align-items:center;gap:0.5rem">
-        ${escHtml(nextLabel)} <span class="material-symbols-outlined">arrow_forward</span>
-      </button>`
-    } else {
-      nextBtnHtml = `<button class="btn-outline" id="avVoltarBtn" style="margin-top:1.5rem">← Voltar para Sala de Aula</button>`
-    }
-
+    const { html: proxHtml2, next: proxItem2 } = _avProximoBtnHtml(av.id)
     conteudo.innerHTML = `
       <div style="text-align:center;padding:2rem">
         <span class="material-symbols-outlined icon-filled" style="font-size:3rem;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'}">
@@ -2473,25 +2520,9 @@ async function openAvaliacao(av) {
         <p style="margin-top:1rem;font-weight:600;color:${pct >= 70 ? 'var(--success)' : 'var(--error)'}">
           ${pct >= 70 ? 'Parabéns! Avaliação concluída com sucesso.' : 'Avaliação concluída. Continue estudando!'}
         </p>
-        ${nextBtnHtml}
+        ${proxHtml2}
       </div>`
-
-    if (nextSalaItem) {
-      document.getElementById('avNextBtn')?.addEventListener('click', () => {
-        if (nextSalaItem._tipo === 'avaliacao') {
-          window.abrirAvaliacaoSala(nextSalaItem.id)
-        } else {
-          window.showPage('sala')
-          const vid = salaVideos.find(v => v.id === nextSalaItem.id)
-          if (vid) { currentVideoId = vid.id; renderSalaVideo(vid) }
-        }
-      })
-    } else {
-      document.getElementById('avVoltarBtn')?.addEventListener('click', () => {
-        window.showPage('sala')
-        renderModuleList(currentVideoId)
-      })
-    }
+    _avAnexarProximo({ next: proxItem2 })
   }
 
   renderQ()
@@ -3374,7 +3405,13 @@ async function loadReports() {
     </td></tr></tbody></table>`
 
   // ── RANKING INDIVIDUAL POR TRILHA (tabela pivô) ──
-  const trilhaList = trilhas || []
+  // Só mostra colunas de vídeos onde ao menos um usuário respondeu questões
+  const _videoIdsComDados = new Set(
+    (porUsuarioTrilha || []).filter(r => Number(r.total_respondidas) > 0).map(r => String(r.video_id))
+  )
+  const trilhaList = _videoIdsComDados.size > 0
+    ? (trilhas || []).filter(t => _videoIdsComDados.has(String(t.id)))
+    : (trilhas || [])
   const userMap = {}
   for (const row of (porUsuarioTrilha || [])) {
     if (!userMap[row.user_id]) {
@@ -4961,6 +4998,8 @@ async function loadSequenciaTrilha() {
     div.draggable = true
     div.dataset.id = item.id
     div.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border:1px solid var(--outline-var);border-radius:var(--r-sm);background:var(--surface);cursor:grab;transition:opacity 0.15s,box-shadow 0.15s'
+    const temQ = item.tem_questoes !== false
+    const mostraToggle = item.tipo === 'video' || item.tipo === 'artigo'
     div.innerHTML = `
       <span class="material-symbols-outlined" style="color:var(--text-secondary);font-size:1.2rem;flex-shrink:0;cursor:grab">drag_indicator</span>
       <span style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);min-width:1.25rem;text-align:center" data-num>${index + 1}</span>
@@ -4969,6 +5008,11 @@ async function loadSequenciaTrilha() {
         <div style="font-size:0.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(nome)}</div>
         <div style="font-size:0.72rem;color:var(--text-secondary)">${SEQ_LABELS[item.tipo] || item.tipo}</div>
       </div>
+      ${mostraToggle ? `<button onclick="window.toggleTemQuestoes(${item.id}, ${temQ})" title="${temQ ? 'Clique para: sem quiz' : 'Clique para: com quiz'}"
+        style="font-size:0.65rem;border:1px solid;border-radius:999px;padding:0.15rem 0.5rem;cursor:pointer;background:none;white-space:nowrap;
+          color:${temQ ? 'var(--primary)' : 'var(--text-secondary)'};border-color:${temQ ? 'var(--primary)' : 'var(--border)'}">
+        ${temQ ? '📝 Com quiz' : '— Sem quiz'}
+      </button>` : ''}
       <button class="btn-icon" style="color:var(--error);flex-shrink:0" onclick="removerItemSequencia(${item.id})" title="Remover">
         <span class="material-symbols-outlined" style="font-size:1rem">delete</span>
       </button>`
@@ -5037,6 +5081,11 @@ window.removerItemSequencia = async function(id) {
   if (!confirm('Remover este item da sequência da trilha?')) return
   await supabase.from('trilha_conteudo').delete().eq('id', id)
   await Promise.all([loadSequenciaTrilha(), loadAvaliacoesParaAdicionar()])
+}
+
+window.toggleTemQuestoes = async function(id, temAtual) {
+  await supabase.from('trilha_conteudo').update({ tem_questoes: !temAtual }).eq('id', id)
+  await loadSequenciaTrilha()
 }
 
 document.getElementById('closeModalSequenciaTrilha')?.addEventListener('click', () => {
