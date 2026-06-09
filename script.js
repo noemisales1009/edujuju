@@ -1882,7 +1882,7 @@ async function loadCatalogo() {
       <div class="card-img">
         ${thumb
           ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}" loading="lazy">`
-          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface)"><span class="material-symbols-outlined" style="font-size:3rem;color:var(--text-secondary)">${cardIcon}</span></div>`}
+          : `<img src="assets/Design_sem_nome_(14).png" alt="${escHtml(title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover">`}
         ${isConcluido ? `<div class="card-done-overlay"><span class="material-symbols-outlined icon-filled">check_circle</span></div>` : ''}
         <div class="card-play-overlay">
           <div class="card-play-circle"><span class="material-symbols-outlined">${overlayIcon}</span></div>
@@ -2146,8 +2146,7 @@ function renderAvaliacaoAdminCard(a, idx, total) {
   div.className = 'admin-list-item'
   div.style.opacity = oculto ? '0.55' : '1'
   div.innerHTML = `
-    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/contain no-repeat;background-color:var(--surface-dim)` : ''}">
-      ${!a.imagem_url ? '<span class="material-symbols-outlined">assignment</span>' : ''}
+    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/contain no-repeat;background-color:var(--surface-dim)` : `background:url('assets/Design_sem_nome_(14).png') center/cover no-repeat`}">
     </div>
     <div class="ali-info">
       <div class="ali-meta">
@@ -2572,8 +2571,7 @@ function renderArtigoAdminCard(a, idx, total) {
   div.className = 'admin-list-item'
   div.style.opacity = oculto ? '0.55' : '1'
   div.innerHTML = `
-    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/contain no-repeat;background-color:var(--surface-dim)` : ''}">
-      ${!a.imagem_url ? '<span class="material-symbols-outlined">article</span>' : ''}
+    <div class="ali-thumb ali-thumb-video" style="${a.imagem_url ? `background:url('${escHtml(a.imagem_url)}') center/contain no-repeat;background-color:var(--surface-dim)` : `background:url('assets/Design_sem_nome_(14).png') center/cover no-repeat`}">
     </div>
     <div class="ali-info">
       <div class="ali-meta">

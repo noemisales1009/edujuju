@@ -149,6 +149,11 @@
   --success:          #15803d;
   --warning:          #b45309;
 
+  --card-bg:          #ffffff;
+  --text-primary:     #191c1d;
+  --text-secondary:   #464555;
+  --radius:           0.75rem;
+
   --shadow-sm:  0 1px 3px  rgba(0,0,0,0.07);
   --shadow-md:  0 4px 14px rgba(0,0,0,0.10);
   --shadow-lg:  0 10px 28px rgba(0,0,0,0.13);
@@ -193,6 +198,11 @@
   --error-soft:       rgba(255, 180, 171, 0.10);
   --success:          #4ade80;
   --warning:          #fbbf24;
+
+  --card-bg:          #1e2022;
+  --text-primary:     #e2e4e5;
+  --text-secondary:   #bbbdc0;
+  --radius:           0.75rem;
 
   --shadow-sm:  0 1px 3px  rgba(0,0,0,0.35);
   --shadow-md:  0 4px 14px rgba(0,0,0,0.45);
