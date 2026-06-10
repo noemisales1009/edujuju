@@ -4345,8 +4345,10 @@ async function loadHome() {
     if (rankData?.length) {
       const agg = {}
       for (const r of rankData) {
+        const pct = Number(r.nota_pct) || 0
+        if (pct === 0) continue
         if (!agg[r.user_id]) agg[r.user_id] = { sum: 0, count: 0 }
-        agg[r.user_id].sum   += Number(r.nota_pct) || 0
+        agg[r.user_id].sum   += pct
         agg[r.user_id].count += 1
       }
       const sorted = Object.entries(agg)
