@@ -3081,6 +3081,7 @@ document.getElementById('formVideo').addEventListener('submit', async e => {
 let _allQuestions = []
 let _questionsVideoMap = {}
 let _questionsModuloMap = {}
+let _questionsVideoOrder = []
 
 async function loadQuestions() {
   const listEl = document.getElementById('questionsList')
@@ -3104,6 +3105,7 @@ async function loadQuestions() {
   _allQuestions = questions || []
   _questionsVideoMap = {}
   _questionsModuloMap = {}
+  _questionsVideoOrder = (videos || []).map(v => String(v.id))
   videos?.forEach(v => {
     _questionsVideoMap[v.id] = v.title
     _questionsModuloMap[v.id] = v.categoria || ''
@@ -3160,7 +3162,44 @@ function renderQuestionsList() {
   }
 
   listEl.innerHTML = ''
-  filtered.forEach(q => listEl.appendChild(renderQuestionCard(q, _questionsVideoMap, _questionsModuloMap)))
+
+  // Agrupa as perguntas por trilha (na ordem das trilhas), como accordions
+  const grupos = {}
+  for (const q of filtered) {
+    const k = String(q.video_id || 'sem-trilha')
+    if (!grupos[k]) grupos[k] = []
+    grupos[k].push(q)
+  }
+  const ordem = [..._questionsVideoOrder.filter(id => grupos[id]), ...Object.keys(grupos).filter(k => !_questionsVideoOrder.includes(k))]
+
+  ordem.forEach(vid => {
+    const qs = grupos[vid]
+    const titulo = _questionsVideoMap[vid] || 'Sem trilha'
+    const modulo = _questionsModuloMap[vid] || ''
+
+    const wrap = document.createElement('div')
+    wrap.className = 'qgroup'
+    wrap.innerHTML = `
+      <button class="qgroup-header" type="button">
+        <span class="material-symbols-outlined icon-filled" style="color:var(--primary);font-size:1.2rem;flex-shrink:0">play_circle</span>
+        <span class="qgroup-title">${escHtml(titulo)}${modulo ? ` <span class="qgroup-mod">· ${escHtml(modulo)}</span>` : ''}</span>
+        <span class="qgroup-count">${qs.length} pergunta${qs.length !== 1 ? 's' : ''}</span>
+        <span class="material-symbols-outlined qgroup-chevron">expand_more</span>
+      </button>
+      <div class="qgroup-body" style="display:none"></div>`
+
+    const body = wrap.querySelector('.qgroup-body')
+    qs.forEach(q => body.appendChild(renderQuestionCard(q, _questionsVideoMap, _questionsModuloMap)))
+
+    wrap.querySelector('.qgroup-header').addEventListener('click', () => {
+      const aberto = body.style.display !== 'none'
+      body.style.display = aberto ? 'none' : ''
+      wrap.querySelector('.qgroup-chevron').textContent = aberto ? 'expand_more' : 'expand_less'
+      wrap.classList.toggle('qgroup-open', !aberto)
+    })
+
+    listEl.appendChild(wrap)
+  })
 }
 
 function renderQuestionCard(q, videoMap = {}, moduloMap = {}) {
@@ -3172,7 +3211,7 @@ function renderQuestionCard(q, videoMap = {}, moduloMap = {}) {
   ]
 
   const div = document.createElement('div')
-  div.className = 'admin-list-item'
+  div.className = 'admin-list-item ali-collapsible'
   div.innerHTML = `
     <div class="ali-thumb ali-thumb-quiz">
       <span class="material-symbols-outlined">quiz</span>
@@ -3184,19 +3223,21 @@ function renderQuestionCard(q, videoMap = {}, moduloMap = {}) {
         ${videoMap[q.video_id] ? `<span class="badge badge-tag"><span class="material-symbols-outlined">play_circle</span>${escHtml(videoMap[q.video_id])}</span>` : ''}
       </div>
       <h4 class="ali-title">${escHtml(q.question)}</h4>
-      <div class="ali-opts-row">
-        ${opts.map((o, i) => `
-          <span class="ali-opt-chip ${q.correct_index === i ? 'ali-opt-correct' : ''}">
-            <span class="opt-letter">${o.l}</span>
-            <span>${escHtml(o.t)}</span>
-            ${q.correct_index === i
-              ? '<span class="material-symbols-outlined icon-filled" style="color:var(--secondary);font-size:0.875rem;margin-left:auto;flex-shrink:0">check_circle</span>'
-              : ''}
-          </span>`).join('')}
+      <div class="ali-body" style="display:none">
+        <div class="ali-opts-row">
+          ${opts.map((o, i) => `
+            <span class="ali-opt-chip ${q.correct_index === i ? 'ali-opt-correct' : ''}">
+              <span class="opt-letter">${o.l}</span>
+              <span>${escHtml(o.t)}</span>
+              ${q.correct_index === i
+                ? '<span class="material-symbols-outlined icon-filled" style="color:var(--secondary);font-size:0.875rem;margin-left:auto;flex-shrink:0">check_circle</span>'
+                : ''}
+            </span>`).join('')}
+        </div>
+        ${q.justification
+          ? `<p class="ali-justif"><span class="material-symbols-outlined" style="font-size:0.875rem;flex-shrink:0">lightbulb</span>${escHtml(q.justification)}</p>`
+          : ''}
       </div>
-      ${q.justification
-        ? `<p class="ali-justif"><span class="material-symbols-outlined" style="font-size:0.875rem;flex-shrink:0">lightbulb</span>${escHtml(q.justification)}</p>`
-        : ''}
     </div>
     <div class="ali-actions">
       <button class="btn-icon" title="Editar" onclick="editQuestion(${q.id})">
@@ -3205,7 +3246,22 @@ function renderQuestionCard(q, videoMap = {}, moduloMap = {}) {
       <button class="btn-icon btn-danger" title="Excluir" onclick="deleteQuestion(${q.id})">
         <span class="material-symbols-outlined">delete</span>
       </button>
+      <button class="btn-icon ali-expand-btn" title="Ver alternativas">
+        <span class="material-symbols-outlined">expand_more</span>
+      </button>
     </div>`
+
+  // Clique no cartão (ou na setinha) expande/recolhe as alternativas;
+  // editar e excluir continuam funcionando sem expandir
+  div.addEventListener('click', e => {
+    if (e.target.closest('.btn-icon') && !e.target.closest('.ali-expand-btn')) return
+    const body = div.querySelector('.ali-body')
+    const icon = div.querySelector('.ali-expand-btn .material-symbols-outlined')
+    const aberto = body.style.display !== 'none'
+    body.style.display = aberto ? 'none' : ''
+    if (icon) icon.textContent = aberto ? 'expand_more' : 'expand_less'
+    div.classList.toggle('ali-open', !aberto)
+  })
   return div
 }
 
