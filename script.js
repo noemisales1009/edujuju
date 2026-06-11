@@ -240,7 +240,7 @@ function applyProfileToUI(profile, email) {
   const controleAcesso = document.getElementById('controleAcessoSection')
   if (controleAcesso) controleAcesso.style.display = isSuper ? '' : 'none'
   const gerarPdfWrap = document.getElementById('btnGerarPDFWrap')
-  if (gerarPdfWrap) gerarPdfWrap.style.display = isSuper ? 'flex' : 'none'
+  if (gerarPdfWrap) gerarPdfWrap.style.display = isAdmin ? 'flex' : 'none'
   const auditSection = document.getElementById('auditLogSection')
   if (auditSection) auditSection.style.display = isSuper ? '' : 'none'
   const resetSection = document.getElementById('resetProgressoSection')
@@ -3340,25 +3340,40 @@ async function loadReports() {
     { count: cVideos },
     { count: cQuestions },
     { count: cUsers },
-    { count: cResults },
     { data: porUsuarioTrilha },
     { data: porSetorTrilha },
     { data: trilhas },
     { data: principais_duvidas },
     { data: avaliacoesDb },
-    { data: notasAvaliacao }
+    { data: notasAvaliacao },
+    { data: questoesAvRows }
   ] = await Promise.all([
     supabase.from('videos').select('*', { count: 'exact', head: true }),
     supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true }),
-    supabase.from('respostas').select('*', { count: 'exact', head: true }),
     supabase.from('v_desempenho_usuario_trilha').select('*'),
     supabase.from('v_desempenho_setor_trilha').select('*'),
     supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
     supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(30),
     supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')
+    supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct'),
+    supabase.from('questoes_avaliacao').select('avaliacao_id')
   ])
+
+  // Perguntas = questões dos quizzes (sala de aula) + questões das avaliações
+  const cQuestoesTotal = (cQuestions || 0) + (questoesAvRows || []).length
+
+  // Respostas = respostas de quiz de TODOS os alunos (via view — a tabela
+  // respostas é protegida por RLS e só mostraria as do próprio admin logado)
+  // + respostas das avaliações concluídas (nº de questões de cada avaliação)
+  const qPorAvaliacao = {}
+  for (const q of (questoesAvRows || [])) {
+    const k = String(q.avaliacao_id)
+    qPorAvaliacao[k] = (qPorAvaliacao[k] || 0) + 1
+  }
+  const respostasQuiz = (porUsuarioTrilha || []).reduce((s, r) => s + (Number(r.total_respondidas) || 0), 0)
+  const respostasAv = (notasAvaliacao || []).reduce((s, r) => s + (qPorAvaliacao[String(r.avaliacao_id)] || 0), 0)
+  const cResults = respostasQuiz + respostasAv
 
   const thS = 'text-align:left;padding:0.5rem 0.75rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
   const tdS = 'padding:0.5rem 0.75rem;border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--text-primary)'
@@ -3420,7 +3435,7 @@ async function loadReports() {
     if (!userMap[row.user_id]) {
       userMap[row.user_id] = { name: row.name, email: row.email, sector: row.sector, role: row.role, trilhas: {} }
     }
-    userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas) }
+    userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas), acertos: Number(row.acertos) || 0 }
   }
 
   const usersArr = Object.values(userMap)
@@ -3442,7 +3457,10 @@ async function loadReports() {
       const d = u.trilhas[t.id]
       if (!d) return `<td style="${tdC}">—</td>`
       if (d.nota !== null && d.nota !== undefined) return `<td style="${tdC}">${notaBadge(d.nota)}</td>`
-      if (d.respondidas > 0) return `<td style="${tdC}"><span style="font-size:0.7rem;color:#f57f17">Em andamento</span></td>`
+      if (d.respondidas > 0) {
+        const parcial = Math.round((d.acertos / d.respondidas) * 100)
+        return `<td style="${tdC}">${notaBadge(parcial)}<div style="font-size:0.62rem;color:#f57f17;margin-top:0.2rem">em andamento · ${d.acertos} de ${d.respondidas}</div></td>`
+      }
       return `<td style="${tdC}"><span style="font-size:0.7rem;color:var(--text-secondary)">Não iniciado</span></td>`
     }).join('')
 
@@ -3545,6 +3563,45 @@ async function loadReports() {
     <tbody>${avRows}</tbody>
   </table>` : semDados(2 + avList.length)
 
+  // ── NOTAS DOS QUIZZES POR ALUNO (respondidos após os vídeos) ──
+  const quizPct = d => (d.nota !== null && d.nota !== undefined)
+    ? Number(d.nota)
+    : Math.round((d.acertos / d.respondidas) * 100)
+
+  const quizHeaders = trilhaList.map(t => `<th style="${thC}" title="${escHtml(t.title)}">${escHtml(t.title.substring(0, 22))}</th>`).join('')
+  const quizRows = usersArr.length ? usersArr.map(u => {
+    const cols = trilhaList.map(t => {
+      const d = u.trilhas[t.id]
+      if (!d || !d.respondidas) return `<td style="${tdC}"><span style="font-size:0.7rem;color:var(--text-secondary)">—</span></td>`
+      const completo = d.nota !== null && d.nota !== undefined
+      const detalhe = completo
+        ? `${d.acertos} de ${d.respondidas} acertos`
+        : `em andamento · ${d.acertos} de ${d.respondidas}`
+      return `<td style="${tdC}">${notaBadge(quizPct(d))}<div style="font-size:0.62rem;color:${completo ? 'var(--text-secondary)' : '#f57f17'};margin-top:0.2rem">${detalhe}</div></td>`
+    }).join('')
+
+    const pcts = trilhaList.map(t => u.trilhas[t.id]).filter(d => d && d.respondidas).map(quizPct)
+    const media = pcts.length ? Math.round(pcts.reduce((s, n) => s + n, 0) / pcts.length) : null
+
+    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <td style="${tdS}">
+        <span style="font-weight:500">${escHtml(u.name || u.email || '—')}</span>
+        <div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')} ${u.role ? '· ' + escHtml(u.role) : ''}</div>
+      </td>
+      ${cols}
+      <td style="${tdC};font-weight:700">${notaBadge(media)}</td>
+    </tr>`
+  }).join('') : null
+
+  const quizTable = quizRows ? `<table class="resp-table" style="width:100%;border-collapse:collapse">
+    <thead style="background:var(--surface)"><tr>
+      <th style="${thS}">Aluno</th>
+      ${quizHeaders}
+      <th style="${thC}">Média</th>
+    </tr></thead>
+    <tbody>${quizRows}</tbody>
+  </table>` : semDados(2 + trilhaList.length)
+
   grid.innerHTML = `
     <div class="report-card">
       <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">play_circle</span></div>
@@ -3553,7 +3610,7 @@ async function loadReports() {
     </div>
     <div class="report-card">
       <div class="report-card-icon" style="background:var(--secondary-soft);color:var(--secondary)"><span class="material-symbols-outlined">quiz</span></div>
-      <span class="report-value" style="color:var(--secondary)">${cQuestions || 0}</span>
+      <span class="report-value" style="color:var(--secondary)">${cQuestoesTotal}</span>
       <span class="report-label">Perguntas</span>
     </div>
     <div class="report-card">
@@ -3567,6 +3624,7 @@ async function loadReports() {
       <span class="report-label">Respostas</span>
     </div>
     ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable)}
+    ${tabelaCard('quiz', 'Notas dos Quizzes por Aluno — respondidos após os vídeos', quizTable)}
     ${tabelaCard('assignment', 'Notas das Avaliações por Aluno', avTable)}
     ${tabelaCard('leaderboard', 'Ranking Individual — desempenho por trilha', rankTable)}
     ${tabelaCard('psychology', 'Principais Dúvidas — perguntas com maior taxa de erro', (() => {
@@ -3611,6 +3669,18 @@ async function loadReports() {
   `
 }
 
+// Marcar/desmarcar todos os chips do modal PDF
+function setAllPdfChips(on) {
+  document.querySelectorAll('.pdf-chip').forEach(chip => {
+    const chk = document.getElementById(chip.dataset.chk)
+    if (!chk) return
+    chk.checked = on
+    chip.classList.toggle('active', on)
+  })
+}
+document.getElementById('pdfMarcarTodos')?.addEventListener('click', () => setAllPdfChips(true))
+document.getElementById('pdfDesmarcarTodos')?.addEventListener('click', () => setAllPdfChips(false))
+
 // Chips do modal PDF fazem toggle no checkbox oculto
 document.querySelectorAll('.pdf-chip').forEach(chip => {
   chip.addEventListener('click', () => {
@@ -3629,10 +3699,13 @@ document.getElementById('closeModalPDF')?.addEventListener('click',  () => docum
 document.getElementById('cancelModalPDF')?.addEventListener('click', () => document.getElementById('modalPDF').classList.remove('open'))
 
 document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
-  const incResumo   = document.getElementById('pdfChkResumo').checked
-  const incSetor    = document.getElementById('pdfChkSetor').checked
-  const incRanking  = document.getElementById('pdfChkRanking').checked
-  const incDuvidas  = document.getElementById('pdfChkDuvidas').checked
+  // Só entram no PDF as seções marcadas no popup de seleção
+  const incResumo     = document.getElementById('pdfChkResumo')?.checked ?? false
+  const incSetor      = document.getElementById('pdfChkSetor')?.checked ?? false
+  const incQuizzes    = document.getElementById('pdfChkQuizzes')?.checked ?? false
+  const incAvaliacoes = document.getElementById('pdfChkAvaliacoes')?.checked ?? false
+  const incRanking    = document.getElementById('pdfChkRanking')?.checked ?? false
+  const incDuvidas    = document.getElementById('pdfChkDuvidas')?.checked ?? false
 
   document.getElementById('modalPDF').classList.remove('open')
 
@@ -3645,21 +3718,40 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       { count: cVideos },
       { count: cQuestions },
       { count: cUsers },
-      { count: cResults },
       { data: porUsuarioTrilha },
       { data: porSetorTrilha },
       { data: trilhas },
-      { data: principais_duvidas }
+      { data: principais_duvidas },
+      { data: avaliacoesDb },
+      { data: notasAvaliacao },
+      { data: usersDb },
+      { data: questoesAvRows }
     ] = await Promise.all([
       supabase.from('videos').select('*', { count: 'exact', head: true }),
       supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('*', { count: 'exact', head: true }),
-      supabase.from('respostas').select('*', { count: 'exact', head: true }),
       supabase.from('v_desempenho_usuario_trilha').select('*'),
       supabase.from('v_desempenho_setor_trilha').select('*'),
       supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
-      supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(50)
+      supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(50),
+      supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
+      supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct'),
+      supabase.from('users').select('id, name, sector, role'),
+      supabase.from('questoes_avaliacao').select('avaliacao_id')
     ])
+
+    // Perguntas = questões dos quizzes + questões das avaliações
+    const cQuestoesTotal = (cQuestions || 0) + (questoesAvRows || []).length
+
+    // Respostas = quiz (todos os alunos, via view) + avaliações concluídas
+    const qPorAvaliacao = {}
+    for (const q of (questoesAvRows || [])) {
+      const k = String(q.avaliacao_id)
+      qPorAvaliacao[k] = (qPorAvaliacao[k] || 0) + 1
+    }
+    const respostasQuiz = (porUsuarioTrilha || []).reduce((s, r) => s + (Number(r.total_respondidas) || 0), 0)
+    const respostasAv = (notasAvaliacao || []).reduce((s, r) => s + (qPorAvaliacao[String(r.avaliacao_id)] || 0), 0)
+    const cResults = respostasQuiz + respostasAv
 
     const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
     const trilhaList = trilhas || []
@@ -3677,9 +3769,12 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
     const userMap = {}
     for (const row of (porUsuarioTrilha || [])) {
       if (!userMap[row.user_id]) userMap[row.user_id] = { name: row.name, email: row.email, sector: row.sector || 'Não informado', role: row.role, trilhas: {} }
-      userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas) }
+      userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas), acertos: Number(row.acertos) || 0 }
     }
-    const usersArr = Object.values(userMap)
+    // Só entra no PDF quem respondeu ao menos uma pergunta de quiz
+    const usersArr = Object.values(userMap).filter(u =>
+      Object.values(u.trilhas).some(d => d.respondidas > 0)
+    )
     usersArr.sort((a, b) => {
       const avg = u => { const ns = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n != null); return ns.length ? ns.reduce((s,n)=>s+Number(n),0)/ns.length : -1 }
       return avg(b) - avg(a)
@@ -3707,7 +3802,10 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
         const d = u.trilhas[t.id]
         if (!d) return `<td style="${tdCStyle}"><span style="color:#9ca3af;font-size:0.75rem">—</span></td>`
         if (d.nota !== null && d.nota !== undefined) return `<td style="${tdCStyle}">${badge(d.nota)}</td>`
-        if (d.respondidas > 0) return `<td style="${tdCStyle}"><span style="color:#d97706;font-size:0.75rem;font-weight:600">Em andamento</span></td>`
+        if (d.respondidas > 0) {
+          const parcial = Math.round((d.acertos / d.respondidas) * 100)
+          return `<td style="${tdCStyle}">${badge(parcial)}<div style="font-size:0.62rem;color:#d97706;margin-top:0.15rem;white-space:nowrap">em andamento · ${d.acertos} de ${d.respondidas}</div></td>`
+        }
         return `<td style="${tdCStyle}"><span style="color:#9ca3af;font-size:0.75rem">Não iniciado</span></td>`
       }).join('')
       const notas = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n != null)
@@ -3741,20 +3839,76 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       </tr>`
     }).join('')
 
+    // Notas dos quizzes (respondidos após os vídeos) por aluno
+    const quizPctPdf = d => (d.nota !== null && d.nota !== undefined) ? Number(d.nota) : Math.round((d.acertos / d.respondidas) * 100)
+    const quizHeaderCols = trilhaList.map(t => `<th style="${thCStyle}" title="${esc(t.title)}">${esc(t.topics || t.title.substring(0,14))}</th>`).join('')
+    const quizBodyRows = usersArr.map((u, i) => {
+      const cols = trilhaList.map(t => {
+        const d = u.trilhas[t.id]
+        if (!d || !d.respondidas) return `<td style="${tdCStyle}"><span style="color:#9ca3af;font-size:0.75rem">—</span></td>`
+        const completo = d.nota !== null && d.nota !== undefined
+        const detalhe = completo ? `${d.acertos} de ${d.respondidas}` : `em andamento · ${d.acertos} de ${d.respondidas}`
+        return `<td style="${tdCStyle}">${badge(quizPctPdf(d))}<div style="font-size:0.62rem;color:${completo ? '#94a3b8' : '#d97706'};margin-top:0.15rem;white-space:nowrap">${detalhe}</div></td>`
+      }).join('')
+      const pcts = trilhaList.map(t => u.trilhas[t.id]).filter(d => d && d.respondidas).map(quizPctPdf)
+      const media = pcts.length ? Math.round(pcts.reduce((s,n)=>s+n,0)/pcts.length) : null
+      const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
+      return `<tr style="background:${rowBg}">
+        <td style="${tdStyle}">
+          <div style="font-weight:600;color:#0f172a">${esc(u.name || u.email || '—')}</div>
+          <div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem">${esc(u.sector)}${u.role ? ' · ' + esc(u.role) : ''}</div>
+        </td>
+        ${cols}
+        <td style="${tdCStyle}">${badge(media)}</td>
+      </tr>`
+    }).join('')
+
+    // Notas das avaliações por aluno
+    const userInfoMap = {}
+    for (const u of (usersDb || [])) userInfoMap[u.id] = u
+    const avNotaMapPdf = {}
+    for (const r of (notasAvaliacao || [])) {
+      if (!avNotaMapPdf[r.user_id]) avNotaMapPdf[r.user_id] = {}
+      avNotaMapPdf[r.user_id][String(r.avaliacao_id)] = Number(r.nota_pct)
+    }
+    const avListPdf = avaliacoesDb || []
+    const avHeaderCols = avListPdf.map(a => `<th style="${thCStyle}" title="${esc(a.titulo)}">${esc(a.topics || a.titulo.substring(0,14))}</th>`).join('')
+    const avEntries = Object.entries(avNotaMapPdf).sort((a, b) =>
+      (userInfoMap[a[0]]?.name || '').localeCompare(userInfoMap[b[0]]?.name || '')
+    )
+    const avBodyRows = avEntries.map(([uid, notas], i) => {
+      const u = userInfoMap[uid] || {}
+      const cols = avListPdf.map(a => {
+        const nota = notas[String(a.id)]
+        return `<td style="${tdCStyle}">${nota !== undefined ? badge(nota) : '<span style="color:#9ca3af;font-size:0.75rem">—</span>'}</td>`
+      }).join('')
+      const vals = avListPdf.map(a => notas[String(a.id)]).filter(n => n !== undefined)
+      const media = vals.length ? Math.round(vals.reduce((s,n)=>s+n,0)/vals.length) : null
+      const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
+      return `<tr style="background:${rowBg}">
+        <td style="${tdStyle}">
+          <div style="font-weight:600;color:#0f172a">${esc(u.name || uid)}</div>
+          <div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem">${esc(u.sector || '')}${u.role ? ' · ' + esc(u.role) : ''}</div>
+        </td>
+        ${cols}
+        <td style="${tdCStyle}">${badge(media)}</td>
+      </tr>`
+    }).join('')
+
     const sectionCard = (title, icon, content) => `
-      <div style="margin-bottom:2rem;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
-        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.9rem 1.25rem;background:#f8fafc;border-bottom:1px solid #e2e8f0">
-          <span style="font-size:1.1rem">${icon}</span>
-          <span style="font-size:0.95rem;font-weight:700;color:#1e293b">${title}</span>
+      <div style="margin-bottom:2rem;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
+        <div style="display:flex;align-items:center;gap:0.65rem;padding:0.95rem 1.25rem;background:linear-gradient(90deg,#f0fdfa 0%,#ecfdf5 60%,#ffffff 100%);border-bottom:2px solid #ccfbf1;border-left:5px solid #006a61">
+          <span style="font-size:1.15rem">${icon}</span>
+          <span style="font-size:0.95rem;font-weight:700;color:#134e4a;letter-spacing:-0.01em">${title}</span>
         </div>
         <div style="overflow-x:auto">${content}</div>
       </div>`
 
-    const statCard = (icon, value, label, color) => `
-      <div style="flex:1;min-width:130px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1.25rem 1rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
-        <div style="font-size:1.5rem;margin-bottom:0.4rem">${icon}</div>
-        <div style="font-size:2rem;font-weight:800;color:${color};line-height:1">${value}</div>
-        <div style="font-size:0.75rem;color:#64748b;margin-top:0.3rem;font-weight:500;text-transform:uppercase;letter-spacing:0.04em">${label}</div>
+    const statCard = (icon, value, label, color, bgSoft) => `
+      <div style="flex:1;min-width:140px;background:linear-gradient(160deg,#ffffff 30%,${bgSoft} 100%);border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1rem;text-align:center;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
+        <div style="width:2.7rem;height:2.7rem;margin:0 auto 0.6rem;display:flex;align-items:center;justify-content:center;border-radius:50%;background:${bgSoft};font-size:1.3rem">${icon}</div>
+        <div style="font-size:2.1rem;font-weight:800;color:${color};line-height:1;letter-spacing:-0.02em">${value}</div>
+        <div style="font-size:0.72rem;color:#64748b;margin-top:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em">${label}</div>
       </div>`
 
     const html = `<!DOCTYPE html>
@@ -3778,23 +3932,23 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 <body>
 <div class="page">
   <!-- Cabeçalho -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1.25rem;border-bottom:3px solid #4f46e5">
+  <div style="background:linear-gradient(135deg,#00524b 0%,#006a61 55%,#0f9488 100%);border-radius:16px;padding:1.6rem 2rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;box-shadow:0 4px 16px rgba(0,106,97,0.3)">
     <div>
-      <div style="font-size:1.6rem;font-weight:800;color:#4f46e5;letter-spacing:-0.02em">EduJuju</div>
-      <div style="font-size:0.85rem;color:#64748b;margin-top:0.15rem">Hospital Infantil Dr. Juvêncio Mattos</div>
+      <div style="font-size:1.8rem;font-weight:800;color:#ffffff;letter-spacing:-0.02em">🎓 EduJuju</div>
+      <div style="font-size:0.85rem;color:rgba(255,255,255,0.88);margin-top:0.25rem">Hospital Infantil Dr. Juvêncio Mattos</div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:1rem;font-weight:700;color:#1e293b">Relatório de Desempenho</div>
-      <div style="font-size:0.8rem;color:#64748b;margin-top:0.15rem">${today}</div>
+      <div style="display:inline-block;padding:0.3rem 0.85rem;border-radius:999px;background:rgba(255,255,255,0.18);font-size:0.72rem;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem">Relatório de Desempenho</div>
+      <div style="font-size:0.85rem;color:rgba(255,255,255,0.88)">${today}</div>
     </div>
   </div>
 
   <!-- Resumo -->
   ${incResumo ? `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem" class="no-break">
-    ${statCard('🎬', cVideos || 0, 'Trilhas', '#4f46e5')}
-    ${statCard('❓', cQuestions || 0, 'Perguntas', '#7c3aed')}
-    ${statCard('👥', cUsers || 0, 'Alunos', '#0f766e')}
-    ${statCard('✅', cResults || 0, 'Respostas', '#b45309')}
+    ${statCard('🎬', cVideos || 0, 'Trilhas', '#006a61', '#f0fdfa')}
+    ${statCard('❓', cQuestoesTotal, 'Perguntas', '#0369a1', '#f0f9ff')}
+    ${statCard('👥', cUsers || 0, 'Alunos', '#15803d', '#f0fdf4')}
+    ${statCard('✅', cResults, 'Respostas', '#b45309', '#fffbeb')}
   </div>` : ''}
 
   <!-- Desempenho por Setor -->
@@ -3802,6 +3956,20 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
     setorBodyRows
       ? `<table><thead><tr><th style="${thStyle}">Setor</th>${setorHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${setorBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
+  ) : ''}
+
+  <!-- Notas dos Quizzes -->
+  ${incQuizzes ? sectionCard('Notas dos Quizzes por Aluno — respondidos após os vídeos', '📝',
+    quizBodyRows
+      ? `<table><thead><tr><th style="${thStyle}">Aluno</th>${quizHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${quizBodyRows}</tbody></table>`
+      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
+  ) : ''}
+
+  <!-- Notas das Avaliações -->
+  ${incAvaliacoes ? sectionCard('Notas das Avaliações por Aluno', '📋',
+    avBodyRows && avListPdf.length
+      ? `<table><thead><tr><th style="${thStyle}">Aluno</th>${avHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${avBodyRows}</tbody></table>`
+      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — nenhuma avaliação concluída</p>`
   ) : ''}
 
   <!-- Ranking Individual -->
@@ -3820,7 +3988,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       if (!grupos[key]) grupos[key] = []
       grupos[key].push(d)
     }
-    const thGrp = 'padding:0.5rem 0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#4f46e5;background:#eef2ff;border-bottom:1px solid #e2e8f0'
+    const thGrp = 'padding:0.5rem 0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#006a61;background:#f0fdfa;border-bottom:1px solid #e2e8f0'
     const rows = Object.entries(grupos).map(([trilha, itens]) => {
       const header = `<tr><td colspan="4" style="${thGrp}">${esc(trilha)}</td></tr>`
       const qRows = itens.map((d, i) => {
@@ -3849,8 +4017,8 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
   })()) : ''}
 
   <!-- Rodapé -->
-  <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:0.72rem;color:#94a3b8">Gerado automaticamente pelo sistema EduJuju</span>
+  <div style="margin-top:2.5rem;padding-top:1rem;border-top:2px solid #ccfbf1;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:0.72rem;color:#94a3b8">💚 Gerado automaticamente pela plataforma EduJuju — Hospital Infantil Dr. Juvêncio Mattos</span>
     <span style="font-size:0.72rem;color:#94a3b8">${today}</span>
   </div>
 </div>

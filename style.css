@@ -1569,20 +1569,27 @@ ul { list-style: none; }
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.45rem 0.875rem;
   border-radius: 999px;
-  border: 1.5px solid var(--outline-var);
+  border: 1.5px dashed var(--outline-var);
   background: var(--surface-high);
   color: var(--on-surface-var);
   font-size: 0.8rem; font-weight: 500;
   cursor: pointer;
   transition: all var(--ease);
+  opacity: 0.55;
 }
 .pdf-chip .material-symbols-outlined { font-size: 1rem; }
-.pdf-chip:hover { border-color: var(--primary); color: var(--primary); }
+.pdf-chip:hover { border-color: var(--primary); color: var(--primary); opacity: 0.85; }
 .pdf-chip.active {
-  border-color: var(--primary);
+  border: 1.5px solid var(--primary);
   background: var(--primary-soft);
   color: var(--primary);
   font-weight: 600;
+  opacity: 1;
+}
+.pdf-chip.active::after {
+  content: '✓';
+  font-weight: 800;
+  margin-left: 0.1rem;
 }
 
 .modal-form {

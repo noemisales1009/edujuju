@@ -1447,13 +1447,25 @@
         <button class="btn-icon" id="closeModalPDF"><span class="material-symbols-outlined">close</span></button>
       </div>
       <div style="padding:1.25rem 1.5rem">
-        <p style="font-size:0.875rem;color:var(--on-surface-var);margin-bottom:1rem">Selecione as seções:</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+          <p style="font-size:0.875rem;color:var(--on-surface-var);margin:0">Marque o que deseja imprimir:</p>
+          <div style="display:flex;gap:0.85rem">
+            <button type="button" id="pdfMarcarTodos" style="background:none;border:none;color:var(--primary);font-size:0.75rem;font-weight:600;cursor:pointer;padding:0">Marcar todos</button>
+            <button type="button" id="pdfDesmarcarTodos" style="background:none;border:none;color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer;padding:0">Desmarcar todos</button>
+          </div>
+        </div>
         <div class="pdf-chips">
           <button type="button" class="pdf-chip active" data-chk="pdfChkResumo">
             <span class="material-symbols-outlined">bar_chart</span>Resumo Geral
           </button>
           <button type="button" class="pdf-chip active" data-chk="pdfChkSetor">
             <span class="material-symbols-outlined">domain</span>Desempenho por Setor
+          </button>
+          <button type="button" class="pdf-chip active" data-chk="pdfChkQuizzes">
+            <span class="material-symbols-outlined">quiz</span>Notas dos Quizzes
+          </button>
+          <button type="button" class="pdf-chip active" data-chk="pdfChkAvaliacoes">
+            <span class="material-symbols-outlined">assignment</span>Notas das Avaliações
           </button>
           <button type="button" class="pdf-chip active" data-chk="pdfChkRanking">
             <span class="material-symbols-outlined">leaderboard</span>Ranking Individual
@@ -1463,10 +1475,12 @@
           </button>
         </div>
         <!-- checkboxes ocultos usados pelo JS -->
-        <input type="checkbox" id="pdfChkResumo"  checked style="display:none">
-        <input type="checkbox" id="pdfChkSetor"   checked style="display:none">
-        <input type="checkbox" id="pdfChkRanking" checked style="display:none">
-        <input type="checkbox" id="pdfChkDuvidas" checked style="display:none">
+        <input type="checkbox" id="pdfChkResumo"     checked style="display:none">
+        <input type="checkbox" id="pdfChkSetor"      checked style="display:none">
+        <input type="checkbox" id="pdfChkQuizzes"    checked style="display:none">
+        <input type="checkbox" id="pdfChkAvaliacoes" checked style="display:none">
+        <input type="checkbox" id="pdfChkRanking"    checked style="display:none">
+        <input type="checkbox" id="pdfChkDuvidas"    checked style="display:none">
       </div>
       <div class="modal-footer">
         <button class="btn-outline" id="cancelModalPDF">Cancelar</button>
