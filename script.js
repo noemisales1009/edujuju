@@ -3393,6 +3393,7 @@ async function loadReports() {
   grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><p>Carregando...</p></div>'
 
   const [
+    { count: cTrilhas },
     { count: cVideos },
     { count: cQuestions },
     { count: cUsers },
@@ -3404,6 +3405,7 @@ async function loadReports() {
     { data: notasAvaliacao },
     { data: questoesAvRows }
   ] = await Promise.all([
+    supabase.from('trilhas').select('*', { count: 'exact', head: true }),
     supabase.from('videos').select('*', { count: 'exact', head: true }),
     supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true }),
@@ -3418,18 +3420,6 @@ async function loadReports() {
 
   // Perguntas = questões dos quizzes (sala de aula) + questões das avaliações
   const cQuestoesTotal = (cQuestions || 0) + (questoesAvRows || []).length
-
-  // Respostas = respostas de quiz de TODOS os alunos (via view — a tabela
-  // respostas é protegida por RLS e só mostraria as do próprio admin logado)
-  // + respostas das avaliações concluídas (nº de questões de cada avaliação)
-  const qPorAvaliacao = {}
-  for (const q of (questoesAvRows || [])) {
-    const k = String(q.avaliacao_id)
-    qPorAvaliacao[k] = (qPorAvaliacao[k] || 0) + 1
-  }
-  const respostasQuiz = (porUsuarioTrilha || []).reduce((s, r) => s + (Number(r.total_respondidas) || 0), 0)
-  const respostasAv = (notasAvaliacao || []).reduce((s, r) => s + (qPorAvaliacao[String(r.avaliacao_id)] || 0), 0)
-  const cResults = respostasQuiz + respostasAv
 
   const thS = 'text-align:left;padding:0.5rem 0.75rem;border-bottom:2px solid var(--border);color:var(--text-secondary);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap'
   const tdS = 'padding:0.5rem 0.75rem;border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--text-primary)'
@@ -3660,9 +3650,14 @@ async function loadReports() {
 
   grid.innerHTML = `
     <div class="report-card">
+      <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">conversion_path</span></div>
+      <span class="report-value" style="color:var(--primary)">${cTrilhas || 0}</span>
+      <span class="report-label">Trilha${(cTrilhas || 0) !== 1 ? 's' : ''}</span>
+    </div>
+    <div class="report-card">
       <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">play_circle</span></div>
       <span class="report-value" style="color:var(--primary)">${cVideos || 0}</span>
-      <span class="report-label">Trilhas</span>
+      <span class="report-label">Vídeos</span>
     </div>
     <div class="report-card">
       <div class="report-card-icon" style="background:var(--secondary-soft);color:var(--secondary)"><span class="material-symbols-outlined">quiz</span></div>
@@ -3673,11 +3668,6 @@ async function loadReports() {
       <div class="report-card-icon" style="background:rgba(126,48,0,0.08);color:#7e3000"><span class="material-symbols-outlined">group</span></div>
       <span class="report-value" style="color:#7e3000">${cUsers || 0}</span>
       <span class="report-label">Alunos</span>
-    </div>
-    <div class="report-card">
-      <div class="report-card-icon" style="background:rgba(90,40,160,0.08);color:#5a28a0"><span class="material-symbols-outlined">check_circle</span></div>
-      <span class="report-value" style="color:#5a28a0">${cResults || 0}</span>
-      <span class="report-label">Respostas</span>
     </div>
     ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable)}
     ${tabelaCard('quiz', 'Notas dos Quizzes por Aluno — respondidos após os vídeos', quizTable)}
@@ -3771,6 +3761,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 
   try {
     const [
+      { count: cTrilhas },
       { count: cVideos },
       { count: cQuestions },
       { count: cUsers },
@@ -3783,6 +3774,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       { data: usersDb },
       { data: questoesAvRows }
     ] = await Promise.all([
+      supabase.from('trilhas').select('*', { count: 'exact', head: true }),
       supabase.from('videos').select('*', { count: 'exact', head: true }),
       supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('*', { count: 'exact', head: true }),
@@ -3798,16 +3790,6 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 
     // Perguntas = questões dos quizzes + questões das avaliações
     const cQuestoesTotal = (cQuestions || 0) + (questoesAvRows || []).length
-
-    // Respostas = quiz (todos os alunos, via view) + avaliações concluídas
-    const qPorAvaliacao = {}
-    for (const q of (questoesAvRows || [])) {
-      const k = String(q.avaliacao_id)
-      qPorAvaliacao[k] = (qPorAvaliacao[k] || 0) + 1
-    }
-    const respostasQuiz = (porUsuarioTrilha || []).reduce((s, r) => s + (Number(r.total_respondidas) || 0), 0)
-    const respostasAv = (notasAvaliacao || []).reduce((s, r) => s + (qPorAvaliacao[String(r.avaliacao_id)] || 0), 0)
-    const cResults = respostasQuiz + respostasAv
 
     const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
     const trilhaList = trilhas || []
@@ -4001,10 +3983,10 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 
   <!-- Resumo -->
   ${incResumo ? `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem" class="no-break">
-    ${statCard('🎬', cVideos || 0, 'Trilhas', '#006a61', '#f0fdfa')}
+    ${statCard('🛤️', cTrilhas || 0, (cTrilhas || 0) !== 1 ? 'Trilhas' : 'Trilha', '#006a61', '#f0fdfa')}
+    ${statCard('🎬', cVideos || 0, 'Vídeos', '#0f766e', '#f0fdfa')}
     ${statCard('❓', cQuestoesTotal, 'Perguntas', '#0369a1', '#f0f9ff')}
     ${statCard('👥', cUsers || 0, 'Alunos', '#15803d', '#f0fdf4')}
-    ${statCard('✅', cResults, 'Respostas', '#b45309', '#fffbeb')}
   </div>` : ''}
 
   <!-- Desempenho por Setor -->
@@ -4573,34 +4555,63 @@ async function gerarCertificado(userId, userName) {
   const nome = userName || 'Colaborador'
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 
-  const { data: respostas } = await supabase
-    .from('respostas').select('question_id').eq('user_id', userId)
-  const { data: videos } = await supabase
-    .from('videos').select('id, topics, title').eq('visivel', true).order('ordem', { ascending: true })
-  const { data: questoes } = await supabase
-    .from('questoes_sala_de_aula').select('id, video_id')
+  // Dados via views (a tabela respostas tem RLS e não é visível pro admin)
+  const [
+    { data: trilhasDb },
+    { data: conteudo },
+    { data: videosDb },
+    { data: avaliacoesDb },
+    { data: desempenho },
+    { data: notasAv }
+  ] = await Promise.all([
+    supabase.from('trilhas').select('id, nome').eq('visivel', true).order('ordem', { ascending: true }),
+    supabase.from('trilha_conteudo').select('trilha_id, item_id, tipo').order('ordem', { ascending: true }),
+    supabase.from('videos').select('id, title'),
+    supabase.from('avaliacoes').select('id, titulo'),
+    supabase.from('v_desempenho_usuario_trilha').select('video_id, nota_pct').eq('user_id', userId),
+    supabase.from('v_desempenho_usuario_avaliacao').select('avaliacao_id, nota_pct').eq('user_id', userId)
+  ])
 
-  const respondidosIds = new Set((respostas || []).map(r => r.question_id))
-  const qPorVideo = {}
-  for (const q of (questoes || [])) {
-    if (!qPorVideo[q.video_id]) qPorVideo[q.video_id] = []
-    qPorVideo[q.video_id].push(q.id)
-  }
+  const vidTitle = {}
+  for (const v of (videosDb || [])) vidTitle[String(v.id)] = v.title
+  const avTitle = {}
+  for (const a of (avaliacoesDb || [])) avTitle[String(a.id)] = a.titulo
+  const notaVid = {}
+  for (const r of (desempenho || [])) if (r.nota_pct !== null && r.nota_pct !== undefined) notaVid[String(r.video_id)] = Math.round(Number(r.nota_pct))
+  const notaAvMap = {}
+  for (const r of (notasAv || [])) if (r.nota_pct !== null && r.nota_pct !== undefined) notaAvMap[String(r.avaliacao_id)] = Math.round(Number(r.nota_pct))
 
-  const trilhasMap = {}
-  for (const v of (videos || [])) {
-    const key = v.topics || v.title
-    if (!trilhasMap[key]) trilhasMap[key] = { vids: [], done: 0 }
-    trilhasMap[key].vids.push(v)
-    const qs = qPorVideo[v.id] || []
-    if (qs.length > 0 && qs.every(qid => respondidosIds.has(qid))) trilhasMap[key].done++
-    else if (qs.length === 0) trilhasMap[key].done++ // sem quiz considera concluído se admin gerou
-  }
+  // Para cada trilha, separa o que o colaborador concluiu:
+  // pós-teste (nota oficial), quizzes dos vídeos e pré-testes
+  const trilhasHtml = (trilhasDb || []).map(t => {
+    const itens = (conteudo || []).filter(c => String(c.trilha_id) === String(t.id))
+    const pre = [], quizzes = [], pos = []
+    for (const c of itens) {
+      const id = String(c.item_id)
+      if (c.tipo === 'video' && notaVid[id] !== undefined) {
+        quizzes.push({ titulo: vidTitle[id] || 'Vídeo', nota: notaVid[id] })
+      } else if (c.tipo === 'avaliacao' && notaAvMap[id] !== undefined) {
+        const titulo = avTitle[id] || 'Avaliação'
+        const ehPre = /pr[eé]\s*-?\s*teste|\bpr[eé]\b/i.test(titulo)
+        ;(ehPre ? pre : pos).push({ titulo, nota: notaAvMap[id] })
+      }
+    }
+    if (!pre.length && !quizzes.length && !pos.length) return ''
 
-  const chips = Object.entries(trilhasMap)
-    .filter(([, t]) => t.done > 0)
-    .map(([trilha]) => `<span class="chip">${escHtml(trilha)}</span>`)
-    .join('')
+    const grupoHtml = (label, arr, cls) => arr.length
+      ? `<div class="grp"><span class="grp-lbl">${label}</span><div class="chips">${arr.map(i =>
+          `<span class="chip ${cls}">✓ ${escHtml(i.titulo)} — ${i.nota}%</span>`).join('')}</div></div>`
+      : ''
+
+    const notaFinal = pos.length ? Math.round(pos.reduce((s, i) => s + i.nota, 0) / pos.length) : null
+
+    return `<div class="trilha-box">
+      <div class="trilha-nome">📚 Trilha: ${escHtml(t.nome)}${notaFinal !== null ? ` <span class="trilha-media">Nota final (pós-teste): ${notaFinal}%</span>` : ''}</div>
+      ${grupoHtml('Pós-teste', pos, 'chip-pos')}
+      ${grupoHtml('Quizzes dos vídeos', quizzes, '')}
+      ${grupoHtml('Pré-testes', pre, 'chip-av')}
+    </div>`
+  }).filter(Boolean).join('')
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -4631,7 +4642,14 @@ body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;over
 .deco-line.r{background:linear-gradient(90deg,#c4b5fd,transparent)}
 .stmt{font-size:0.9rem;color:#374151;line-height:1.8;max-width:500px;font-family:'Segoe UI',Arial,sans-serif}
 .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
-.chip{background:#ede9fe;color:#5b21b6;border-radius:20px;padding:4px 16px;font-size:0.72rem;font-weight:600;font-family:'Segoe UI',Arial,sans-serif;border:1px solid #c4b5fd}
+.chip{background:#ede9fe;color:#5b21b6;border-radius:20px;padding:4px 14px;font-size:0.68rem;font-weight:600;font-family:'Segoe UI',Arial,sans-serif;border:1px solid #c4b5fd}
+.chip-av{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.chip-pos{background:#d1fae5;color:#065f46;border-color:#6ee7b7;font-size:0.74rem}
+.trilha-box{display:flex;flex-direction:column;gap:7px;max-width:660px}
+.trilha-nome{font-size:0.85rem;font-weight:700;color:#1a1a2e;font-family:'Segoe UI',Arial,sans-serif}
+.trilha-media{display:inline-block;margin-left:6px;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 12px;font-size:0.68rem;font-weight:800;border:1px solid #6ee7b7}
+.grp{display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap}
+.grp-lbl{font-size:0.56rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;flex-shrink:0}
 .ftr{padding:10px 40px 12px;display:flex;align-items:flex-end;justify-content:space-between;border-top:1.5px solid #e5e7eb;background:#faf9ff}
 .sig{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:155px}
 .sig-line{width:155px;border-top:1px solid #6b7280;margin-bottom:3px}
@@ -4668,7 +4686,7 @@ body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;over
       <div class="deco-line r"></div>
     </div>
     <p class="stmt">concluiu com êxito o programa de trilhas de aprendizado da plataforma EduJuju, demonstrando dedicação ao desenvolvimento profissional e à excelência no cuidado prestado.</p>
-    ${chips ? `<div class="chips">${chips}</div>` : ''}
+    ${trilhasHtml || ''}
   </div>
   <div class="ftr">
     <div class="sig">
@@ -4976,21 +4994,65 @@ async function gerarPdfHistoricoLogin() {
 }
 window.gerarPdfHistoricoLogin = gerarPdfHistoricoLogin
 
+let _certUsers = null
+
 async function loadAdminCertificados() {
   const listEl = document.getElementById('adminCertList')
   if (!listEl) return
   listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
 
-  const { data: users } = await supabase
-    .from('users').select('id, name, email, sector').order('name', { ascending: true })
+  const [{ data: users }, { data: desempenho }, { data: notasAv }, { data: avaliacoesVis }, { data: questoesVid }] = await Promise.all([
+    supabase.from('users').select('id, name, email, sector').order('name', { ascending: true }),
+    supabase.from('v_desempenho_usuario_trilha').select('user_id, video_id, nota_pct'),
+    supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id'),
+    supabase.from('avaliacoes').select('id').eq('visivel', true),
+    supabase.from('questoes_sala_de_aula').select('video_id')
+  ])
 
-  if (!users?.length) {
-    listEl.innerHTML = '<div class="list-empty"><p>Nenhum usuário encontrado.</p></div>'
+  // Vídeos que possuem quiz
+  const videosComQuiz = [...new Set((questoesVid || []).map(q => String(q.video_id)))]
+
+  // Quizzes concluídos (nota fechada) por usuário
+  const quizOk = {}
+  for (const r of (desempenho || [])) {
+    if (r.nota_pct === null || r.nota_pct === undefined) continue
+    if (!quizOk[r.user_id]) quizOk[r.user_id] = new Set()
+    quizOk[r.user_id].add(String(r.video_id))
+  }
+
+  // Avaliações concluídas por usuário
+  const avOk = {}
+  for (const r of (notasAv || [])) {
+    if (!avOk[r.user_id]) avOk[r.user_id] = new Set()
+    avOk[r.user_id].add(String(r.avaliacao_id))
+  }
+  const avIds = (avaliacoesVis || []).map(a => String(a.id))
+
+  // Só pode gerar certificado quem concluiu TUDO:
+  // todos os quizzes dos vídeos + todas as avaliações visíveis
+  const concluiuTudo = uid =>
+    videosComQuiz.every(v => quizOk[uid]?.has(v)) &&
+    avIds.every(a => avOk[uid]?.has(a))
+
+  _certUsers = (users || []).filter(u => concluiuTudo(u.id))
+  renderCertList()
+}
+
+function renderCertList() {
+  const listEl = document.getElementById('adminCertList')
+  if (!listEl) return
+  const termo = (document.getElementById('certUserSearch')?.value || '').trim().toLowerCase()
+  const lista = (_certUsers || []).filter(u =>
+    !termo || (u.name || '').toLowerCase().includes(termo) || (u.email || '').toLowerCase().includes(termo)
+  )
+
+  if (!lista.length) {
+    listEl.innerHTML = `<div class="list-empty"><p>${termo ? 'Ninguém encontrado com esse nome.' : 'Ninguém concluiu todo o conteúdo ainda — o certificado libera quando o colaborador termina todos os quizzes e avaliações.'}</p></div>`
     return
   }
 
   listEl.innerHTML = ''
-  for (const u of users) {
+  for (const u of lista) {
     const nome = u.name?.trim() || u.email?.split('@')[0] || 'Usuário'
     const div = document.createElement('div')
     div.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;border:1px solid var(--outline-var);border-radius:var(--r-md);background:var(--surface-low);margin-bottom:0.375rem'
@@ -5009,6 +5071,8 @@ async function loadAdminCertificados() {
     listEl.appendChild(div)
   }
 }
+
+document.getElementById('certUserSearch')?.addEventListener('input', renderCertList)
 
 // ============================================
 // SUPER — LOG DE AUDITORIA
