@@ -243,6 +243,8 @@ function applyProfileToUI(profile, email) {
   if (gerarPdfWrap) gerarPdfWrap.style.display = isSuper ? 'flex' : 'none'
   const auditSection = document.getElementById('auditLogSection')
   if (auditSection) auditSection.style.display = isSuper ? '' : 'none'
+  const resetSection = document.getElementById('resetProgressoSection')
+  if (resetSection) resetSection.style.display = isAdmin ? '' : 'none'
 }
 
 function applyCachedProfile(userId) {
@@ -4051,44 +4053,6 @@ document.getElementById('formPerfil').addEventListener('submit', async e => {
   }
 })
 
-// Segurança — trocar senha
-document.getElementById('btnEditSenha').addEventListener('click', () => {
-  document.getElementById('formSenha').reset()
-  document.getElementById('senhaError').textContent = ''
-  document.getElementById('senhaError').className   = 'form-msg'
-  document.getElementById('modalSenha').classList.add('open')
-})
-document.getElementById('closeModalSenha').addEventListener('click', () => document.getElementById('modalSenha').classList.remove('open'))
-document.getElementById('cancelSenha').addEventListener('click',     () => document.getElementById('modalSenha').classList.remove('open'))
-
-document.getElementById('formSenha').addEventListener('submit', async e => {
-  e.preventDefault()
-  const btn      = e.target.querySelector('[type="submit"]')
-  const errorEl  = document.getElementById('senhaError')
-  const nova     = document.getElementById('novaSenha').value
-  const confirma = document.getElementById('confirmarSenha').value
-
-  if (nova !== confirma) {
-    errorEl.textContent = 'As senhas não coincidem.'
-    return
-  }
-
-  setLoading(btn, true, 'Salvando...')
-  errorEl.textContent = ''
-
-  const { error } = await supabase.auth.updateUser({ password: nova })
-
-  setLoading(btn, false, 'Alterar Senha')
-
-  if (error) {
-    errorEl.textContent = 'Erro: ' + error.message
-  } else {
-    errorEl.className   = 'form-msg success'
-    errorEl.textContent = '✓ Senha alterada com sucesso!'
-    setTimeout(() => document.getElementById('modalSenha').classList.remove('open'), 1500)
-  }
-})
-
 // Notificações — em breve
 document.getElementById('btnNotificacoes').addEventListener('click', () => {
   alert('Configurações de notificação em breve.')
@@ -4583,6 +4547,114 @@ async function loadAdminAcessos() {
     <p style="text-align:right;font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">${acessos.length} registro${acessos.length !== 1 ? 's' : ''} (últimos 300)</p>`
 }
 window.loadAdminAcessos = loadAdminAcessos
+
+// ─────────────────────────────────────────────
+// ZERAR PROGRESSO DE USUÁRIO (admin)
+// ─────────────────────────────────────────────
+let _resetUsersCache = null
+
+function toggleResetProgresso() {
+  const body = document.getElementById('resetProgressoBody')
+  const icon = document.getElementById('resetProgressoIcon')
+  const isOpen = body.style.display === 'flex'
+  body.style.display = isOpen ? 'none' : 'flex'
+  icon.textContent = isOpen ? 'expand_more' : 'expand_less'
+  if (!isOpen) loadResetUsers()
+}
+window.toggleResetProgresso = toggleResetProgresso
+
+async function loadResetUsers() {
+  const listEl = document.getElementById('resetUserList')
+  if (!listEl) return
+  if (!_resetUsersCache) {
+    const { data } = await supabase.from('users').select('id, name, email, sector').order('name', { ascending: true })
+    _resetUsersCache = data || []
+  }
+  renderResetUsers()
+}
+
+function renderResetUsers() {
+  const listEl = document.getElementById('resetUserList')
+  if (!listEl) return
+  const termo = (document.getElementById('resetUserSearch')?.value || '').trim().toLowerCase()
+  const users = (_resetUsersCache || []).filter(u =>
+    !termo || (u.name || '').toLowerCase().includes(termo) || (u.email || '').toLowerCase().includes(termo)
+  )
+  if (!users.length) {
+    listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary)">Nenhum usuário encontrado.</p>'
+    return
+  }
+  listEl.innerHTML = users.slice(0, 30).map(u => `
+    <div class="admin-list-item" style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;padding:0.6rem 0.75rem">
+      <div style="min-width:0">
+        <div style="font-weight:600;font-size:0.85rem;color:var(--on-surface);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(u.name || u.email || '—')}</div>
+        <div style="font-size:0.72rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(u.email || '')}${u.sector ? ' · ' + escHtml(u.sector) : ''}</div>
+      </div>
+      <button onclick="resetProgressoDe('${u.id}', '${escHtml((u.name || u.email || '').replace(/['"\\\\]/g, ''))}')"
+        style="flex-shrink:0;display:inline-flex;align-items:center;gap:0.3rem;padding:0.35rem 0.75rem;border:1px solid #c62828;border-radius:var(--radius);background:transparent;color:#c62828;font-size:0.75rem;font-weight:600;cursor:pointer">
+        <span class="material-symbols-outlined" style="font-size:1rem">restart_alt</span>
+        Zerar
+      </button>
+    </div>`).join('')
+  if (users.length > 30) {
+    listEl.innerHTML += `<p style="font-size:0.72rem;color:var(--text-secondary);text-align:right;margin-top:0.5rem">Mostrando 30 de ${users.length} — refine a busca.</p>`
+  }
+}
+
+document.getElementById('resetUserSearch')?.addEventListener('input', renderResetUsers)
+
+async function resetProgressoDe(userId, nome) {
+  if (!confirm(`Zerar todo o progresso de "${nome}"?\n\nIsso apaga respostas de quiz, notas de avaliações e vídeos/artigos concluídos. Esta ação não pode ser desfeita.`)) return
+  const { data, error } = await supabase.rpc('reset_progresso_usuario', { alvo: userId })
+  if (error) {
+    alert('Erro ao zerar progresso: ' + error.message)
+    return
+  }
+  logAudit('progresso_zerado', nome, data || {})
+  alert(`Progresso de "${nome}" zerado com sucesso!\n\nRespostas apagadas: ${data?.respostas ?? 0}\nProgresso apagado: ${data?.progresso ?? 0}\n\nPeça para o usuário sair e entrar novamente no app.`)
+}
+window.resetProgressoDe = resetProgressoDe
+
+async function trocarSenhaUsuario() {
+  const emailEl = document.getElementById('trocaSenhaEmail')
+  const senhaEl = document.getElementById('trocaSenhaNova')
+  const msgEl   = document.getElementById('trocaSenhaMsg')
+  const email   = (emailEl?.value || '').trim()
+  const senha   = (senhaEl?.value || '').trim()
+
+  const showMsg = (texto, ok) => {
+    if (!msgEl) return
+    msgEl.textContent = texto
+    msgEl.style.color = ok ? 'var(--success)' : '#c62828'
+    msgEl.style.display = ''
+  }
+
+  if (!email)            { showMsg('Informe o email do usuário.', false); return }
+  if (senha.length < 6)  { showMsg('A nova senha deve ter no mínimo 6 caracteres.', false); return }
+
+  const { data: alvo } = await supabase
+    .from('users').select('id, name, email')
+    .ilike('email', email)
+    .maybeSingle()
+
+  if (!alvo) { showMsg('Nenhum usuário encontrado com esse email.', false); return }
+
+  const nome = alvo.name || alvo.email
+  if (!confirm(`Trocar a senha de "${nome}" (${alvo.email})?\n\nNova senha: ${senha}`)) return
+
+  const btn = document.getElementById('btnTrocarSenha')
+  if (btn) btn.disabled = true
+  const { error } = await supabase.rpc('trocar_senha_usuario', { alvo: alvo.id, nova_senha: senha })
+  if (btn) btn.disabled = false
+
+  if (error) { showMsg('Erro ao trocar a senha: ' + error.message, false); return }
+
+  logAudit('senha_trocada', nome)
+  showMsg(`Senha de "${nome}" trocada com sucesso! Informe a nova senha ao usuário.`, true)
+  if (emailEl) emailEl.value = ''
+  if (senhaEl) senhaEl.value = ''
+}
+window.trocarSenhaUsuario = trocarSenhaUsuario
 
 async function gerarPdfHistoricoLogin() {
   const btn = document.getElementById('btnPdfLogin')

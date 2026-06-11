@@ -857,6 +857,50 @@
             </div>
           </div>
 
+          <!-- Gerenciar Usuários: trocar senha / zerar progresso (admin) -->
+          <div id="resetProgressoSection" style="margin-bottom:1.5rem;border:1px solid var(--outline-var);border-radius:var(--r-md);overflow:hidden">
+            <button onclick="toggleResetProgresso()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:0.875rem 1rem;background:var(--surface-mid);border:none;cursor:pointer;font-weight:600;font-size:0.9rem;color:var(--on-surface)">
+              <span style="display:flex;align-items:center;gap:0.5rem">
+                <span class="material-symbols-outlined icon-filled" style="color:#c62828;font-size:1.2rem">manage_accounts</span>
+                Gerenciar Usuários — senha e progresso
+              </span>
+              <span class="material-symbols-outlined" id="resetProgressoIcon" style="font-size:1.2rem;color:var(--text-secondary)">expand_more</span>
+            </button>
+            <div id="resetProgressoBody" style="display:none;padding:1rem;flex-direction:column;gap:0.75rem">
+
+              <!-- Trocar senha de usuário -->
+              <div style="border:1px solid var(--outline-var);border-radius:var(--radius);padding:0.875rem">
+                <p style="font-size:0.85rem;font-weight:600;color:var(--on-surface);margin:0 0 0.25rem;display:flex;align-items:center;gap:0.4rem">
+                  <span class="material-symbols-outlined" style="font-size:1.1rem;color:#4f46e5">key</span>
+                  Trocar senha de usuário
+                </p>
+                <p style="font-size:0.78rem;color:var(--text-secondary);margin:0 0 0.75rem">Define uma nova senha para o usuário — use quando ele esquecer a senha dele.</p>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+                  <input id="trocaSenhaEmail" type="email" placeholder="Email do usuário" style="flex:2;min-width:180px;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:0.85rem;background:var(--bg);color:var(--text-primary)">
+                  <input id="trocaSenhaNova" type="text" placeholder="Nova senha (mín. 6 caracteres)" style="flex:2;min-width:180px;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:0.85rem;background:var(--bg);color:var(--text-primary)">
+                  <button onclick="trocarSenhaUsuario()" id="btnTrocarSenha" style="flex-shrink:0;display:inline-flex;align-items:center;gap:0.3rem;padding:0.5rem 1rem;border:none;border-radius:var(--radius);background:var(--primary);color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer">
+                    <span class="material-symbols-outlined" style="font-size:1rem">key</span>
+                    Trocar Senha
+                  </button>
+                </div>
+                <p id="trocaSenhaMsg" style="font-size:0.78rem;margin:0.5rem 0 0;display:none"></p>
+              </div>
+
+              <!-- Zerar progresso -->
+              <div style="border:1px solid var(--outline-var);border-radius:var(--radius);padding:0.875rem;display:flex;flex-direction:column;gap:0.75rem">
+                <div>
+                  <p style="font-size:0.85rem;font-weight:600;color:var(--on-surface);margin:0 0 0.25rem;display:flex;align-items:center;gap:0.4rem">
+                    <span class="material-symbols-outlined" style="font-size:1.1rem;color:#c62828">restart_alt</span>
+                    Zerar progresso de usuário
+                  </p>
+                  <p style="font-size:0.78rem;color:var(--text-secondary);margin:0">Apaga respostas de quiz, notas de avaliações e vídeos/artigos concluídos, para ele responder tudo novamente — não pode ser desfeito.</p>
+                </div>
+                <input id="resetUserSearch" placeholder="Buscar usuário pelo nome ou email..." style="width:100%;box-sizing:border-box;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:0.85rem;background:var(--bg);color:var(--text-primary)">
+                <div id="resetUserList"><p style="font-size:0.8rem;color:var(--text-secondary)">Carregando usuários...</p></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Log de Auditoria (super only) -->
           <div id="auditLogSection" style="margin-bottom:1.5rem;border:1px solid var(--outline-var);border-radius:var(--r-md);overflow:hidden">
             <button onclick="toggleAuditLog()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:0.875rem 1rem;background:var(--surface-mid);border:none;cursor:pointer;font-weight:600;font-size:0.9rem;color:var(--on-surface)">
@@ -875,6 +919,8 @@
                   <option value="video_concluido">▶ Vídeo concluído</option>
                   <option value="artigo_lido">📄 Artigo lido</option>
                   <option value="avaliacao_concluida">📋 Avaliação concluída</option>
+                  <option value="progresso_zerado">🔄 Progresso zerado</option>
+                  <option value="senha_trocada">🔑 Senha trocada</option>
                 </select>
                 <button onclick="loadAuditLog()" style="padding:0.4rem 0.75rem;border:none;border-radius:var(--radius);background:var(--primary);color:#fff;font-size:0.8rem;cursor:pointer">Buscar</button>
               </div>
@@ -1350,14 +1396,6 @@
                   </div>
                   <span class="material-symbols-outlined settings-chevron">chevron_right</span>
                 </button>
-                <button class="settings-item" id="btnEditSenha">
-                  <span class="material-symbols-outlined settings-icon">security</span>
-                  <div class="settings-text">
-                    <span>Segurança</span>
-                    <small>Senha, 2FA</small>
-                  </div>
-                  <span class="material-symbols-outlined settings-chevron">chevron_right</span>
-                </button>
                 <button class="settings-item settings-logout">
                   <span class="material-symbols-outlined">logout</span>
                   <div class="settings-text">
@@ -1480,31 +1518,6 @@
         <div class="modal-actions">
           <button type="button" class="btn-outline" id="cancelPerfil">Cancelar</button>
           <button type="submit" class="btn-primary" id="savePerfilBtn">Salvar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modal: Segurança -->
-  <div class="modal-overlay" id="modalSenha">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2>Alterar Senha</h2>
-        <button class="btn-icon" id="closeModalSenha"><span class="material-symbols-outlined">close</span></button>
-      </div>
-      <form class="modal-form" id="formSenha">
-        <div class="form-group">
-          <label for="novaSenha">Nova senha</label>
-          <input type="password" id="novaSenha" placeholder="Mínimo 6 caracteres" minlength="6" required>
-        </div>
-        <div class="form-group">
-          <label for="confirmarSenha">Confirmar nova senha</label>
-          <input type="password" id="confirmarSenha" placeholder="Repita a nova senha" required>
-        </div>
-        <div class="form-msg" id="senhaError"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn-outline" id="cancelSenha">Cancelar</button>
-          <button type="submit" class="btn-primary" id="saveSenhaBtn">Alterar Senha</button>
         </div>
       </form>
     </div>
