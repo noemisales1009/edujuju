@@ -1935,9 +1935,11 @@ function setArtigoProgress(id, status, titulo = '') {
   localStorage.setItem(`eduflow-artigo-${currentUser.id}-${id}`, status)
   if (status === 'completed') {
     supabase.from('progresso_usuario').upsert(
-      { user_id: currentUser.id, item_id: id, item_tipo: 'artigo', concluido: true },
+      { user_id: currentUser.id, item_id: String(id), item_tipo: 'artigo', concluido: true },
       { onConflict: 'user_id,item_id,item_tipo' }
-    )
+    ).then(({ error }) => {
+      if (error) console.error('[Progresso] Erro ao salvar artigo concluído:', error)
+    })
     logAudit('artigo_lido', titulo || `Artigo ID: ${id}`)
   }
 }
@@ -2094,9 +2096,11 @@ function setVideoProgress(videoId, status) {
   localStorage.setItem(`eduflow-prog-${currentUser.id}-${videoId}`, status)
   if (status === 'completed') {
     supabase.from('progresso_usuario').upsert(
-      { user_id: currentUser.id, item_id: videoId, item_tipo: 'video', concluido: true },
+      { user_id: currentUser.id, item_id: String(videoId), item_tipo: 'video', concluido: true },
       { onConflict: 'user_id,item_id,item_tipo' }
-    )
+    ).then(({ error }) => {
+      if (error) console.error('[Progresso] Erro ao salvar vídeo concluído:', error)
+    })
     logAudit('video_concluido', _currentVideoTitle || `Vídeo ID: ${videoId}`)
   }
 }
