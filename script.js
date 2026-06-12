@@ -1769,8 +1769,13 @@ window.editDoc = editDoc
 // CATÁLOGO — carrega vídeos do Supabase
 // ============================================
 let _reorderMode = false
+let _catalogTemSequencia = false
 
 document.getElementById('btnReordenarCatalogo')?.addEventListener('click', () => {
+  if (!_reorderMode && _catalogTemSequencia) {
+    alert('A ordem do catálogo segue a Sequência da Trilha.\nPara reordenar, use Admin → Trilhas → ícone de sequência.')
+    return
+  }
   _reorderMode = !_reorderMode
   const label = document.getElementById('btnReordenarLabel')
   const btn   = document.getElementById('btnReordenarCatalogo')
@@ -1803,6 +1808,8 @@ async function loadCatalogo() {
     .select('tipo, item_id, obrigatorio')
     .order('trilha_id', { ascending: true })
     .order('ordem', { ascending: true })
+
+  _catalogTemSequencia = !!seq?.length
 
   // Fallback: se não há sequência, busca diretamente das tabelas
   if (!seq?.length) {
@@ -4551,8 +4558,9 @@ async function loadHome() {
     if (rankData?.length) {
       const agg = {}
       for (const r of rankData) {
-        const pct = Number(r.nota_pct) || 0
-        if (pct === 0) continue
+        // null = trilha não iniciada (fora da média); 0 = nota real, conta
+        if (r.nota_pct === null || r.nota_pct === undefined) continue
+        const pct = Number(r.nota_pct)
         if (!agg[r.user_id]) agg[r.user_id] = { sum: 0, count: 0 }
         agg[r.user_id].sum   += pct
         agg[r.user_id].count += 1
@@ -5488,8 +5496,9 @@ async function loadAvaliacoesParaAdicionar() {
     supabase.from('avaliacoes').select('id, titulo').order('titulo', { ascending: true }),
     supabase.from('trilha_conteudo').select('item_id').eq('trilha_id', _sequenciaTrilhaId).eq('tipo', 'avaliacao')
   ])
-  const jaIds = new Set((jaAdicionadas || []).map(r => r.item_id))
-  const disponiveis = (todas || []).filter(av => !jaIds.has(av.id))
+  // String() dos dois lados — imune ao tipo da coluna item_id no banco
+  const jaIds = new Set((jaAdicionadas || []).map(r => String(r.item_id)))
+  const disponiveis = (todas || []).filter(av => !jaIds.has(String(av.id)))
 
   const sel = document.getElementById('selectAvaliacaoAdd')
   sel.innerHTML = '<option value="">Selecionar avaliação...</option>'
