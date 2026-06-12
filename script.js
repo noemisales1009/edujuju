@@ -384,7 +384,7 @@ if (confirmBtn) confirmBtn.addEventListener('click', handleQuiz)
 
 async function loadSalaDeAula() {
   const [{ data: seq }, { data: todasRespostas }] = await Promise.all([
-    supabase.from('trilha_conteudo').select('item_id, tipo, tem_questoes').order('ordem', { ascending: true }),
+    supabase.from('trilha_conteudo').select('item_id, tipo, tem_questoes').order('trilha_id', { ascending: true }).order('ordem', { ascending: true }),
     currentUser
       ? supabase.from('respostas').select('question_id, is_correct, chosen_index').eq('user_id', currentUser.id)
       : Promise.resolve({ data: [] })
@@ -396,8 +396,8 @@ async function loadSalaDeAula() {
     const avIds    = seq.filter(s => s.tipo === 'avaliacao').map(s => s.item_id)
 
     const [{ data: vids }, { data: avs }] = await Promise.all([
-      videoIds.length ? supabase.from('videos').select('id, title, description, youtube_url, topics, ordem, texto_aula').in('id', videoIds) : Promise.resolve({ data: [] }),
-      avIds.length    ? supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics').in('id', avIds) : Promise.resolve({ data: [] }),
+      videoIds.length ? supabase.from('videos').select('id, title, description, youtube_url, topics, ordem, texto_aula').in('id', videoIds).eq('visivel', true) : Promise.resolve({ data: [] }),
+      avIds.length    ? supabase.from('avaliacoes').select('id, titulo, descricao, imagem_url, topics').in('id', avIds).eq('visivel', true) : Promise.resolve({ data: [] }),
     ])
 
     const vidMap = Object.fromEntries((vids || []).map(v => [v.id, { ...v, _tipo: 'video' }]))
@@ -417,6 +417,7 @@ async function loadSalaDeAula() {
     const { data: vids } = await supabase
       .from('videos')
       .select('id, title, description, youtube_url, topics, ordem, texto_aula')
+      .eq('visivel', true)
       .order('ordem', { ascending: true })
     videos = (vids || []).map(v => ({ ...v, _tipo: 'video' }))
     salaItems = videos
@@ -982,8 +983,8 @@ async function handleQuiz() {
     quizFeedback.innerHTML = `<strong>✓ Correto!</strong>${justif}`
   }
 
-  // Marca progresso da aula apenas ao responder a última pergunta
-  if (_quizIndex >= _quizQuestions.length - 1 && isCorrect) {
+  // Marca progresso da aula apenas ao responder a última pergunta (certa ou errada)
+  if (_quizIndex >= _quizQuestions.length - 1) {
     setVideoProgress(currentVideoId, 'completed')
     setTimeout(() => checkTrilhaConcluidaEConfetti(currentVideoId), 400)
   }
@@ -1800,6 +1801,7 @@ async function loadCatalogo() {
   const { data: seq } = await supabase
     .from('trilha_conteudo')
     .select('tipo, item_id, obrigatorio')
+    .order('trilha_id', { ascending: true })
     .order('ordem', { ascending: true })
 
   // Fallback: se não há sequência, busca diretamente das tabelas
@@ -2037,7 +2039,10 @@ async function openArtigo(artigo) {
           <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem">Pergunta ${qIdx+1} de ${questoes.length}</p>
           <p style="font-weight:600;margin-bottom:1rem">${escHtml(q.question)}</p>
           <div class="quiz-options" id="aqOptions">
-            ${[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((opt,oi) => `
+            ${[q.option_a, q.option_b, q.option_c, q.option_d]
+              .map((opt, oi) => ({ opt, oi }))
+              .filter(({ opt }) => opt)
+              .map(({ opt, oi }) => `
               <label class="quiz-option" data-oi="${oi}">
                 <input type="radio" name="artigo-quiz" value="${oi}">
                 <span>${escHtml(opt)}</span>
@@ -2052,10 +2057,9 @@ async function openArtigo(artigo) {
           const oi = +chosen.value
           const isCorrect = oi === (q.correct_index ?? 0)
           answeredMap[q.id] = isCorrect
-          const labels = quizCard.querySelectorAll('.quiz-option')
-          labels.forEach(l => { l.style.pointerEvents = 'none' })
-          labels[q.correct_index ?? 0]?.classList.add('correct')
-          if (!isCorrect) labels[oi]?.classList.add('wrong')
+          quizCard.querySelectorAll('.quiz-option').forEach(l => { l.style.pointerEvents = 'none' })
+          quizCard.querySelector(`.quiz-option[data-oi="${q.correct_index ?? 0}"]`)?.classList.add('correct')
+          if (!isCorrect) quizCard.querySelector(`.quiz-option[data-oi="${oi}"]`)?.classList.add('wrong')
           const fb = document.getElementById('aqFeedback')
           fb.className = `quiz-feedback ${isCorrect ? 'ok' : 'err'}`
           fb.innerHTML = isCorrect ? '<strong>✓ Correto!</strong>' : '<strong>✗ Incorreta.</strong> A correta está em verde.'
@@ -2190,9 +2194,13 @@ async function moveAvaliacao(id, direction) {
   const idx  = data.findIndex(a => a.id === id)
   const swap = data[idx + direction]
   if (!swap) return
+  // Fallback posicional quando ordem é null ou duplicada (registros antigos sem ordem)
+  let ordemAtual = data[idx].ordem ?? idx
+  let ordemSwap  = swap.ordem ?? (idx + direction)
+  if (ordemAtual === ordemSwap) { ordemAtual = idx; ordemSwap = idx + direction }
   await Promise.all([
-    supabase.from('avaliacoes').update({ ordem: swap.ordem }).eq('id', id),
-    supabase.from('avaliacoes').update({ ordem: data[idx].ordem }).eq('id', swap.id)
+    supabase.from('avaliacoes').update({ ordem: ordemSwap }).eq('id', id),
+    supabase.from('avaliacoes').update({ ordem: ordemAtual }).eq('id', swap.id)
   ])
   loadAdminAvaliacoes()
 }
@@ -2320,6 +2328,9 @@ document.getElementById('formAvaliacao')?.addEventListener('submit', async e => 
   const visivel   = document.getElementById('avaliacaoVisivel').checked
   const file      = document.getElementById('avaliacaoImagemFile').files[0]
   if (!titulo) { errorEl.textContent = 'Preencha o título.'; return }
+  const idxSemCorreta = _avaliacaoQuestoes.findIndex(q =>
+    q.enunciado?.trim() && q.options?.filter(o => o?.trim()).length >= 2 && !q.options[q.correct_index ?? 0]?.trim())
+  if (idxSemCorreta !== -1) { errorEl.textContent = `Pergunta ${idxSemCorreta + 1}: a alternativa marcada como correta está vazia.`; return }
   setLoading(btn, true, 'Salvando...')
   errorEl.textContent = ''
   let imagemUrl = _avaliacaoImagemUrl
@@ -2466,7 +2477,10 @@ async function openAvaliacao(av) {
         <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem">Pergunta ${qIdx+1} de ${questoes.length}</p>
         <p style="font-weight:600;margin-bottom:1rem">${escHtml(q.question)}</p>
         <div class="quiz-options" id="avOptions">
-          ${[q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean).map((opt,oi) => `
+          ${[q.option_a, q.option_b, q.option_c, q.option_d]
+            .map((opt, oi) => ({ opt, oi }))
+            .filter(({ opt }) => opt)
+            .map(({ opt, oi }) => `
             <label class="quiz-option" data-oi="${oi}">
               <input type="radio" name="av-quiz" value="${oi}">
               <span>${escHtml(opt)}</span>
@@ -2485,8 +2499,8 @@ async function openAvaliacao(av) {
       if (isCorrect) acertos++
       respostas[q.id] = isCorrect
       conteudo.querySelectorAll('.quiz-option').forEach(l => { l.style.pointerEvents = 'none' })
-      conteudo.querySelectorAll('.quiz-option')[q.correct_index ?? 0]?.classList.add('correct')
-      if (!isCorrect) conteudo.querySelectorAll('.quiz-option')[oi]?.classList.add('wrong')
+      conteudo.querySelector(`.quiz-option[data-oi="${q.correct_index ?? 0}"]`)?.classList.add('correct')
+      if (!isCorrect) conteudo.querySelector(`.quiz-option[data-oi="${oi}"]`)?.classList.add('wrong')
       const fb = document.getElementById('avFeedback')
       fb.className = `quiz-feedback ${isCorrect ? 'ok' : 'err'}`
       fb.innerHTML = isCorrect ? '<strong>✓ Correto!</strong>' : '<strong>✗ Incorreta.</strong> A correta está em verde.'
@@ -2615,9 +2629,13 @@ async function moveArtigo(id, direction) {
   const idx  = artigos.findIndex(a => a.id === id)
   const swap = artigos[idx + direction]
   if (!swap) return
+  // Fallback posicional quando ordem é null ou duplicada (registros antigos sem ordem)
+  let ordemAtual = artigos[idx].ordem ?? idx
+  let ordemSwap  = swap.ordem ?? (idx + direction)
+  if (ordemAtual === ordemSwap) { ordemAtual = idx; ordemSwap = idx + direction }
   await Promise.all([
-    supabase.from('artigos').update({ ordem: swap.ordem }).eq('id', id),
-    supabase.from('artigos').update({ ordem: artigos[idx].ordem }).eq('id', swap.id)
+    supabase.from('artigos').update({ ordem: ordemSwap }).eq('id', id),
+    supabase.from('artigos').update({ ordem: ordemAtual }).eq('id', swap.id)
   ])
   loadAdminArtigos()
 }
@@ -2814,6 +2832,9 @@ document.getElementById('formArtigo').addEventListener('submit', async e => {
   }
 
   if (!titulo) { errorEl.textContent = 'Preencha o título.'; return }
+  const idxSemCorreta = _artigoQuestoes.findIndex(q =>
+    q.enunciado?.trim() && q.options?.filter(o => o?.trim()).length >= 2 && !q.options[q.correct_index ?? 0]?.trim())
+  if (idxSemCorreta !== -1) { errorEl.textContent = `Pergunta ${idxSemCorreta + 1}: a alternativa marcada como correta está vazia.`; return }
 
   setLoading(btn, true, 'Salvando...')
   errorEl.textContent = ''
@@ -3586,9 +3607,12 @@ async function loadReports() {
   ;(porUsuarioTrilha || []).forEach(r => {
     if (!avUsersMap[r.user_id]) avUsersMap[r.user_id] = { name: r.name, sector: r.sector }
   })
-  // Adiciona users que só têm avaliação
-  for (const uid of Object.keys(avNotaMap)) {
-    if (!avUsersMap[uid]) avUsersMap[uid] = { name: uid, sector: '' }
+  // Adiciona users que só têm avaliação (busca o nome no banco em vez de exibir o UUID)
+  const soAvUids = Object.keys(avNotaMap).filter(uid => !avUsersMap[uid])
+  if (soAvUids.length) {
+    const { data: soAvUsers } = await supabase.from('users').select('id, name, sector').in('id', soAvUids)
+    for (const u of (soAvUsers || [])) avUsersMap[u.id] = { name: u.name || '—', sector: u.sector || '' }
+    for (const uid of soAvUids) if (!avUsersMap[uid]) avUsersMap[uid] = { name: '—', sector: '' }
   }
   const avRows = Object.entries(avUsersMap).map(([uid, u]) => {
     const cols = avList.map(a => {
@@ -4380,8 +4404,12 @@ async function loadHome() {
   }
 
   // --- Continue de onde parou ---
-  const startedItem = allItems.find(i => (i._tipo === 'video' ? getVideoProgress(i.id) : getArtigoProgress(i.id)) === 'started')
-    || allItems.find(i => (i._tipo === 'video' ? getVideoProgress(i.id) : getArtigoProgress(i.id)) !== 'completed')
+  const progressoDoItem = i =>
+    i._tipo === 'video'  ? getVideoProgress(i.id)
+    : i._tipo === 'artigo' ? getArtigoProgress(i.id)
+    : getAvaliacaoProgress(i.id)
+  const startedItem = allItems.find(i => progressoDoItem(i) === 'started')
+    || allItems.find(i => progressoDoItem(i) !== 'completed')
 
   const continueWrap = document.getElementById('homeContinueWrap')
   const continueCard = document.getElementById('homeContinueCard')
@@ -4389,28 +4417,32 @@ async function loadHome() {
     if (startedItem) {
       continueWrap.style.display = ''
       const isArtigo = startedItem._tipo === 'artigo'
-      const title    = isArtigo ? startedItem.titulo  : startedItem.title
-      const desc     = isArtigo ? startedItem.descricao : startedItem.description
-      const vid      = !isArtigo ? ytVideoId(startedItem.youtube_url) : null
+      const isVideo  = startedItem._tipo === 'video'
+      const title    = isVideo ? startedItem.title       : startedItem.titulo
+      const desc     = isVideo ? startedItem.description : startedItem.descricao
+      const vid      = isVideo ? ytVideoId(startedItem.youtube_url) : null
       const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : (startedItem.imagem_url || null)
       window._openHomeItem = (id, tipo) => {
         const item = allItems.find(i => String(i.id) === String(id) && i._tipo === tipo)
-        if (item) (tipo === 'artigo' ? openArtigo(item) : openVideoSala(item))
+        if (!item) return
+        if (tipo === 'artigo')         openArtigo(item)
+        else if (tipo === 'avaliacao') openAvaliacao(item)
+        else                           openVideoSala(item)
       }
       continueCard.innerHTML = `
         <div class="home-continue-thumb">
           ${thumb
             ? `<img src="${escHtml(thumb)}" alt="${escHtml(title)}" loading="lazy">`
-            : `<span class="material-symbols-outlined icon-filled" style="font-size:2.5rem;color:var(--primary)">${isArtigo ? 'article' : 'play_circle'}</span>`}
+            : `<span class="material-symbols-outlined icon-filled" style="font-size:2.5rem;color:var(--primary)">${isArtigo ? 'article' : isVideo ? 'play_circle' : 'quiz'}</span>`}
         </div>
         <div class="home-continue-info">
-          <span class="badge badge-progress">${isArtigo ? 'Artigo' : 'Vídeo'}</span>
+          <span class="badge badge-progress">${isArtigo ? 'Artigo' : isVideo ? 'Vídeo' : 'Avaliação'}</span>
           <p class="home-continue-title">${escHtml(title)}</p>
           ${desc ? `<p class="home-continue-desc">${escHtml(desc)}</p>` : ''}
         </div>
         <button class="btn-primary home-continue-btn" onclick="window._openHomeItem('${startedItem.id}','${startedItem._tipo}')">
-          <span class="material-symbols-outlined" style="font-size:1rem">${isArtigo ? 'menu_book' : 'play_arrow'}</span>
-          ${isArtigo ? 'Ler' : 'Assistir'}
+          <span class="material-symbols-outlined" style="font-size:1rem">${isArtigo ? 'menu_book' : isVideo ? 'play_arrow' : 'quiz'}</span>
+          ${isArtigo ? 'Ler' : isVideo ? 'Assistir' : 'Fazer Avaliação'}
         </button>`
     } else {
       continueWrap.style.display = 'none'
@@ -5033,8 +5065,11 @@ async function loadAdminCertificados() {
   const avIds = (avaliacoesVis || []).map(a => String(a.id))
 
   // Só pode gerar certificado quem concluiu TUDO:
-  // todos os quizzes dos vídeos + todas as avaliações visíveis
+  // todos os quizzes dos vídeos + todas as avaliações visíveis.
+  // Sem nenhum quiz/avaliação cadastrado não há critério — ninguém é concluinte.
+  const temCriterio = videosComQuiz.length > 0 || avIds.length > 0
   const concluiuTudo = uid =>
+    temCriterio &&
     videosComQuiz.every(v => quizOk[uid]?.has(v)) &&
     avIds.every(a => avOk[uid]?.has(a))
 
