@@ -18,17 +18,18 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       supabase.from('registro_acesso').insert({ user_id: currentUser.id })
         .then(({ error }) => { if (error) console.warn('[Auth] registro_acesso:', error) })
     }
-    // Salva dados do cadastro se ainda não existirem no perfil (nunca sobrescreve access_level)
+    // Salva dados do perfil — nunca sobrescreve access_level nem apaga campo já preenchido
     supabase.from('users')
       .select('name, sector, role, access_level')
       .eq('id', currentUser.id)
       .maybeSingle()
       .then(({ data: existing }) => {
         const payload = { id: currentUser.id, email: currentUser.email }
-        if (!existing?.name    && meta.name)   payload.name   = meta.name
-        if (!existing?.sector  && meta.sector) payload.sector = meta.sector
-        if (!existing?.role    && meta.role)   payload.role   = meta.role
-        if (!existing?.access_level)           payload.access_level = 'geral'
+        if (!existing?.access_level) payload.access_level = 'geral'
+        // name, sector e role: usa o valor do banco se já existir, senão usa o do cadastro
+        payload.name   = existing?.name   || meta.name   || null
+        payload.sector = existing?.sector || meta.sector || null
+        payload.role   = existing?.role   || meta.role   || null
         return supabase.from('users').upsert(payload, { onConflict: 'id' })
       })
       .then(({ error } = {}) => { if (error) console.warn('[Auth] upsert users:', error) })
@@ -171,6 +172,14 @@ document.getElementById('registerForm').addEventListener('submit', async e => {
       errorEl.textContent = 'Erro ao criar conta. Tente novamente.'
     setLoading(btn, false, 'Criar Conta')
     return
+  }
+
+  // Garante que sector e role ficam salvos mesmo se o trigger criar a linha antes do onAuthStateChange
+  if (data?.user?.id) {
+    supabase.from('users').upsert(
+      { id: data.user.id, email, name, sector: setor, role: funcao, access_level: 'geral' },
+      { onConflict: 'id', ignoreDuplicates: false }
+    ).then(({ error: e }) => { if (e) console.warn('[Cadastro] upsert users:', e) })
   }
 
   errorEl.className   = 'form-msg success'
