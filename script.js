@@ -3692,6 +3692,79 @@ async function loadReports() {
     <tbody>${quizRows}</tbody>
   </table>` : semDados(2 + trilhaList.length)
 
+  // ── QUEM RESPONDEU OS QUIZZES ──
+  const totalVideos = trilhaList.length
+  const respondeuAlgo = usersArr.filter(u => Object.values(u.trilhas).some(d => d.respondidas > 0))
+  const respondeuTudo = usersArr.filter(u =>
+    totalVideos > 0 && trilhaList.every(t => {
+      const d = u.trilhas[t.id]
+      return d && d.nota !== null && d.nota !== undefined
+    })
+  )
+
+  const respondeuRows = usersArr.filter(u =>
+    trilhaList.some(t => (u.trilhas[t.id]?.respondidas || 0) > 0)
+  ).map(u => {
+    const videosCompletos = trilhaList.filter(t => {
+      const d = u.trilhas[t.id]
+      return d && d.nota !== null && d.nota !== undefined
+    }).length
+    const totalRespondidas = trilhaList.reduce((s, t) => s + (u.trilhas[t.id]?.respondidas || 0), 0)
+    const totalAcertos     = trilhaList.reduce((s, t) => s + (u.trilhas[t.id]?.acertos    || 0), 0)
+    const pctAcerto = totalRespondidas > 0 ? Math.round((totalAcertos / totalRespondidas) * 100) : null
+    const completo  = totalVideos > 0 && videosCompletos === totalVideos
+
+    const statusBadge = completo
+      ? `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#e8f5e9;color:#2e7d32">✅ Respondeu tudo</span>`
+      : totalRespondidas > 0
+        ? `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#fff8e1;color:#f57f17">⏳ Incompleto (${videosCompletos}/${totalVideos} vídeos)</span>`
+        : `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#f5f5f5;color:#9e9e9e">Não iniciou</span>`
+
+    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+      <td style="${tdS}">
+        <span style="font-weight:500">${escHtml(u.name || u.email || '—')}</span>
+        <div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')} ${u.role ? '· ' + escHtml(u.role) : ''}</div>
+      </td>
+      <td style="${tdC}">${totalRespondidas}</td>
+      <td style="${tdC}">${totalAcertos}</td>
+      <td style="${tdC}">${pctAcerto !== null ? notaBadge(pctAcerto) : '—'}</td>
+      <td style="${tdS}">${statusBadge}</td>
+    </tr>`
+  }).join('')
+
+  const respondeuSummary = `
+    <div style="display:flex;gap:1.25rem;flex-wrap:wrap;align-items:center;padding:0.75rem 1rem;background:var(--surface);border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.82rem">
+        <span class="material-symbols-outlined" style="font-size:1rem;color:var(--primary)">groups</span>
+        <strong>${respondeuAlgo.length}</strong>&nbsp;responderam ao menos 1 questão
+      </div>
+      <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.82rem">
+        <span class="material-symbols-outlined" style="font-size:1rem;color:#2e7d32">check_circle</span>
+        <strong>${respondeuTudo.length}</strong>&nbsp;responderam tudo
+      </div>
+      <div style="margin-left:auto">
+        <button onclick="printRespondeuTable()" style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.35rem 0.8rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text-primary);font-size:0.78rem;font-weight:500;cursor:pointer">
+          <span class="material-symbols-outlined" style="font-size:0.95rem">print</span> Imprimir
+        </button>
+      </div>
+    </div>`
+
+  const respondeuTable = usersArr.length ? `
+    ${respondeuSummary}
+    <table id="respondeuTable" class="resp-table" style="width:100%;border-collapse:collapse"
+      data-respondeu-algo="${respondeuAlgo.length}"
+      data-respondeu-tudo="${respondeuTudo.length}"
+      data-total-alunos="${usersArr.length}">
+      <thead style="background:var(--surface)"><tr>
+        <th style="${thS}">Aluno</th>
+        <th style="${thC}">Questões<br>Respondidas</th>
+        <th style="${thC}">Acertos</th>
+        <th style="${thC}">% Acerto</th>
+        <th style="${thS};min-width:160px">Status</th>
+      </tr></thead>
+      <tbody>${respondeuRows}</tbody>
+    </table>` : semDados(5)
+
   grid.innerHTML = `
     <div class="report-card">
       <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">conversion_path</span></div>
@@ -3713,6 +3786,7 @@ async function loadReports() {
       <span class="report-value" style="color:#7e3000">${cUsers || 0}</span>
       <span class="report-label">Alunos</span>
     </div>
+    ${tabelaCard('how_to_reg', 'Quem Respondeu os Quizzes', respondeuTable)}
     ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable)}
     ${tabelaCard('quiz', 'Notas dos Quizzes por Aluno — respondidos após os vídeos', quizTable)}
     ${tabelaCard('assignment', 'Notas das Avaliações por Aluno', avTable)}
@@ -3757,6 +3831,79 @@ async function loadReports() {
       </table>`
     })())}
   `
+}
+
+// Imprimir tabela "Quem Respondeu os Quizzes"
+function printRespondeuTable() {
+  const table = document.getElementById('respondeuTable')
+  if (!table) { alert('Abra a seção "Quem Respondeu os Quizzes" antes de imprimir.'); return }
+
+  const totalAlunos   = table.dataset.totalAlunos   || ''
+  const respondeuAlgo = table.dataset.respondeuAlgo || ''
+  const respondeuTudo = table.dataset.respondeuTudo || ''
+
+  // Clona linhas da tabela com cores fixas (sem CSS variables)
+  let html = table.outerHTML
+    .replace(/var\(--border\)/g,        '#e5e7eb')
+    .replace(/var\(--surface\)/g,       '#f9fafb')
+    .replace(/var\(--text-primary\)/g,  '#111827')
+    .replace(/var\(--text-secondary\)/g,'#6b7280')
+    .replace(/var\(--primary\)/g,       '#14b8a6')
+    .replace(/var\(--radius\)/g,        '6px')
+    .replace(/var\(--bg\)/g,            '#ffffff')
+    .replace(/onmouseover="[^"]*"/g, '')
+    .replace(/onmouseout="[^"]*"/g,  '')
+
+  // Injeta overlay de impressão diretamente na página (evita escalonamento do popup)
+  let overlay = document.getElementById('_printRespondeuOverlay')
+  if (!overlay) {
+    overlay = document.createElement('div')
+    overlay.id = '_printRespondeuOverlay'
+    document.body.appendChild(overlay)
+  }
+
+  overlay.innerHTML = `
+    <div style="font-family:Arial,sans-serif;color:#111827;padding:1.5cm">
+      <p style="font-size:22pt;font-weight:700;margin:0 0 4pt">\
+EduJuju — Hospital Infantil Dr. Juvêncio Mattos</p>
+      <p style="font-size:16pt;font-weight:600;color:#374151;margin:0 0 4pt">Quem Respondeu os Quizzes</p>
+      <p style="font-size:12pt;color:#6b7280;margin:0 0 16pt">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+      <div style="display:flex;gap:2em;margin-bottom:16pt;padding:8pt 12pt;background:#f3f4f6;border-radius:6px;font-size:12pt">
+        <span>👥 <strong>${respondeuAlgo}</strong> de <strong>${totalAlunos}</strong> responderam ao menos 1 questão</span>
+        <span>✅ <strong>${respondeuTudo}</strong> responderam tudo</span>
+      </div>
+      ${html}
+    </div>`
+
+  // Injeta estilo de impressão com fonte grande e esconde o resto da página
+  let style = document.getElementById('_printRespondeuStyle')
+  if (!style) {
+    style = document.createElement('style')
+    style.id = '_printRespondeuStyle'
+    document.head.appendChild(style)
+  }
+  style.textContent = `
+    @media print {
+      @page { size: A4 landscape; margin: 0; }
+      body > *:not(#_printRespondeuOverlay) { display: none !important; }
+      #_printRespondeuOverlay { display: block !important; }
+      #_printRespondeuOverlay table { width:100%; border-collapse:collapse; font-size:12pt; }
+      #_printRespondeuOverlay th   { font-size:10pt; padding:6pt 8pt; background:#f3f4f6;
+                                     border-bottom:2px solid #ccc; text-transform:uppercase; color:#555; }
+      #_printRespondeuOverlay td   { font-size:12pt; padding:7pt 8pt; border-bottom:1px solid #e5e7eb; }
+      #_printRespondeuOverlay td div { font-size:10pt; }
+      #_printRespondeuOverlay span[style*="border-radius:999px"] { font-size:10pt !important; }
+      #_printRespondeuOverlay tr:nth-child(even) td { background:#f9fafb; }
+    }
+    #_printRespondeuOverlay { display: none; }
+  `
+
+  window.print()
+
+  // Após impressão, remove o overlay
+  window.addEventListener('afterprint', () => {
+    overlay.innerHTML = ''
+  }, { once: true })
 }
 
 // Marcar/desmarcar todos os chips do modal PDF
@@ -5045,7 +5192,8 @@ async function gerarPdfHistoricoLogin() {
     btn.disabled = false
   }
 }
-window.gerarPdfHistoricoLogin = gerarPdfHistoricoLogin
+window.gerarPdfHistoricoLogin  = gerarPdfHistoricoLogin
+window.printRespondeuTable     = printRespondeuTable
 
 let _certUsers = null
 
