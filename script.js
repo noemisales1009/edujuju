@@ -4636,14 +4636,14 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
     const esc = s => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 
     const badge = pct => {
-      if (pct === null || pct === undefined) return `<span style="color:#9ca3af;font-size:0.8rem">—</span>`
+      if (pct === null || pct === undefined) return `<span style="color:#9ca3af;font-size:0.72rem">—</span>`
       const n = Number(pct)
       const [bg, color] = n >= 70 ? ['#d1fae5','#065f46'] : n >= 50 ? ['#fef3c7','#92400e'] : ['#fee2e2','#991b1b']
-      return `<span style="display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.78rem;font-weight:700;background:${bg};color:${color}">${n}%</span>`
+      return `<span style="display:inline-block;padding:0.12rem 0.45rem;border-radius:999px;font-size:0.7rem;font-weight:700;background:${bg};color:${color}">${n}%</span>`
     }
 
     // Legenda dos vídeos (as colunas das tabelas são numeradas)
-    const legendaTrilhas = `<div style="padding:0.7rem 1.25rem 0.1rem;font-size:0.72rem;color:#475569;line-height:1.7">${trilhaList.map((t, i) => `<span style="display:inline-block;margin-right:14px"><strong style="color:#134e4a">Vídeo ${i + 1}</strong> — ${esc(t.title)}</span>`).join('')}</div>`
+    const legendaTrilhas = `<div style="padding:0.4rem 1rem 0.05rem;font-size:0.65rem;color:#475569;line-height:1.5">${trilhaList.map((t, i) => `<span style="display:inline-block;margin-right:12px"><strong style="color:#134e4a">Vídeo ${i + 1}</strong> — ${esc(t.title)}</span>`).join('')}</div>`
 
     // ── Pivot: usuário × trilha ──
     const userMap = {}
@@ -4694,10 +4694,10 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       setorMap[s].trilhas[row.video_id] = row.media_pct
     }
 
-    const thStyle = 'padding:0.55rem 0.75rem;text-align:left;background:#f1f5f9;color:#475569;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border-bottom:2px solid #e2e8f0;white-space:nowrap'
-    const thCStyle = 'padding:0.55rem 0.6rem;text-align:center;background:#f1f5f9;color:#475569;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border-bottom:2px solid #e2e8f0;white-space:nowrap;max-width:90px'
-    const tdStyle = 'padding:0.5rem 0.75rem;border-bottom:1px solid #f1f5f9;font-size:0.8rem;color:#1e293b;vertical-align:middle'
-    const tdCStyle = 'padding:0.5rem 0.6rem;text-align:center;border-bottom:1px solid #f1f5f9;font-size:0.78rem;vertical-align:middle'
+    const thStyle = 'padding:0.3rem 0.55rem;text-align:left;background:#f1f5f9;color:#475569;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border-bottom:2px solid #e2e8f0;white-space:nowrap'
+    const thCStyle = 'padding:0.3rem 0.45rem;text-align:center;background:#f1f5f9;color:#475569;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border-bottom:2px solid #e2e8f0;white-space:nowrap;max-width:90px'
+    const tdStyle = 'padding:0.28rem 0.55rem;border-bottom:1px solid #f1f5f9;font-size:0.72rem;color:#1e293b;vertical-align:middle'
+    const tdCStyle = 'padding:0.28rem 0.45rem;text-align:center;border-bottom:1px solid #f1f5f9;font-size:0.7rem;vertical-align:middle'
 
     // Ranking individual
     const rankHeaderCols = trilhaList.map((t, i) => `<th style="${thCStyle}" title="${esc(t.title)}">Vídeo ${i + 1}</th>`).join('')
@@ -4721,7 +4721,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
         <td style="${tdCStyle};font-size:0.9rem">${rankNum}</td>
         <td style="${tdStyle}">
           <div style="font-weight:600;color:#0f172a">${esc(u.name || u.email || '—')}</div>
-          <div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem">${esc(u.sector)}${u.role ? ' · ' + esc(u.role) : ''}</div>
+          <div style="font-size:0.62rem;color:#64748b;margin-top:0.05rem">${esc(u.sector)}${u.role ? ' · ' + esc(u.role) : ''}</div>
         </td>
         ${trilhaCols}
         <td style="${tdCStyle}">${badge(media)}</td>
@@ -4762,7 +4762,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       return `<tr style="background:${rowBg}">
         <td style="${tdStyle}">
           <div style="font-weight:600;color:#0f172a">${esc(u.name || u.email || '—')}</div>
-          <div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem">${esc(u.sector)}${u.role ? ' · ' + esc(u.role) : ''}</div>
+          <div style="font-size:0.62rem;color:#64748b;margin-top:0.05rem">${esc(u.sector)}${u.role ? ' · ' + esc(u.role) : ''}</div>
         </td>
         ${cols}
         <td style="${tdCStyle}">${badge(media)}</td>
@@ -4778,7 +4778,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       avNotaMapPdf[r.user_id][String(r.avaliacao_id)] = Number(r.nota_pct)
     }
     const avListPdf = avaliacoesDb || []
-    const legendaAv = `<div style="padding:0.7rem 1.25rem 0.1rem;font-size:0.72rem;color:#475569;line-height:1.7">${avListPdf.map((a, i) => `<span style="display:inline-block;margin-right:14px"><strong style="color:#134e4a">Avaliação ${i + 1}</strong> — ${esc(a.titulo)}</span>`).join('')}</div>`
+    const legendaAv = `<div style="padding:0.4rem 1rem 0.05rem;font-size:0.65rem;color:#475569;line-height:1.5">${avListPdf.map((a, i) => `<span style="display:inline-block;margin-right:12px"><strong style="color:#134e4a">Avaliação ${i + 1}</strong> — ${esc(a.titulo)}</span>`).join('')}</div>`
     const avHeaderCols = avListPdf.map((a, i) => `<th style="${thCStyle}" title="${esc(a.titulo)}">Avaliação ${i + 1}</th>`).join('')
     const avEntries = Object.entries(avNotaMapPdf)
       .filter(([uid]) => !setorFiltro || ((userInfoMap[uid]?.sector || '').trim() === setorFiltro))
@@ -4797,7 +4797,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       return `<tr style="background:${rowBg}">
         <td style="${tdStyle}">
           <div style="font-weight:600;color:#0f172a">${esc(u.name || uid)}</div>
-          <div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem">${esc(u.sector || '')}${u.role ? ' · ' + esc(u.role) : ''}</div>
+          <div style="font-size:0.62rem;color:#64748b;margin-top:0.05rem">${esc(u.sector || '')}${u.role ? ' · ' + esc(u.role) : ''}</div>
         </td>
         ${cols}
         <td style="${tdCStyle}">${badge(media)}</td>
@@ -4834,17 +4834,17 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       : 0
 
     const statCard = (icon, value, label, color, bgSoft) => `
-      <div style="flex:1;min-width:150px;background:linear-gradient(160deg,#ffffff 30%,${bgSoft} 100%);border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1rem;text-align:center;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
-        <div style="width:2.7rem;height:2.7rem;margin:0 auto 0.6rem;display:flex;align-items:center;justify-content:center;border-radius:50%;background:${bgSoft};font-size:1.3rem">${icon}</div>
-        <div style="font-size:2.1rem;font-weight:800;color:${color};line-height:1;letter-spacing:-0.02em">${value}</div>
-        <div style="font-size:0.72rem;color:#64748b;margin-top:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">${label}</div>
+      <div style="flex:1;min-width:120px;background:linear-gradient(160deg,#ffffff 30%,${bgSoft} 100%);border:1px solid #e2e8f0;border-radius:10px;padding:0.6rem 0.6rem;text-align:center;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
+        <div style="width:1.8rem;height:1.8rem;margin:0 auto 0.3rem;display:flex;align-items:center;justify-content:center;border-radius:50%;background:${bgSoft};font-size:0.95rem">${icon}</div>
+        <div style="font-size:1.45rem;font-weight:800;color:${color};line-height:1;letter-spacing:-0.02em">${value}</div>
+        <div style="font-size:0.6rem;color:#64748b;margin-top:0.25rem;font-weight:600;text-transform:uppercase;letter-spacing:0.03em">${label}</div>
       </div>`
 
     const sectionCard = (title, icon, content) => `
-      <div style="margin-bottom:2rem;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
-        <div style="display:flex;align-items:center;gap:0.65rem;padding:0.95rem 1.25rem;background:linear-gradient(90deg,#f0fdfa 0%,#ecfdf5 60%,#ffffff 100%);border-bottom:2px solid #ccfbf1;border-left:5px solid #006a61">
-          <span style="font-size:1.15rem">${icon}</span>
-          <span style="font-size:0.95rem;font-weight:700;color:#134e4a;letter-spacing:-0.01em">${title}</span>
+      <div style="margin-bottom:0.85rem;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.45rem 1rem;background:linear-gradient(90deg,#f0fdfa 0%,#ecfdf5 60%,#ffffff 100%);border-bottom:2px solid #ccfbf1;border-left:4px solid #006a61">
+          <span style="font-size:0.95rem">${icon}</span>
+          <span style="font-size:0.82rem;font-weight:700;color:#134e4a;letter-spacing:-0.01em">${title}</span>
         </div>
         <div style="overflow-x:auto">${content}</div>
       </div>`
@@ -4857,32 +4857,32 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
-  .page { width: 100%; max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  .page { width: 100%; max-width: 900px; margin: 0 auto; padding: 1.25rem; }
   table { width: 100%; border-collapse: collapse; }
   @media print {
     body { background: #fff; }
-    .page { padding: 1cm 1.5cm; }
+    .page { padding: 0; max-width: 100%; }
     .no-break { page-break-inside: avoid; }
-    @page { size: A4 landscape; margin: 1cm 1.5cm; }
+    @page { size: A4 portrait; margin: 0.7cm 0.8cm; }
   }
 </style>
 </head>
 <body>
 <div class="page">
   <!-- Cabeçalho -->
-  <div style="background:linear-gradient(135deg,#00524b 0%,#006a61 55%,#0f9488 100%);border-radius:16px;padding:1.6rem 2rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;box-shadow:0 4px 16px rgba(0,106,97,0.3)">
+  <div style="background:linear-gradient(135deg,#00524b 0%,#006a61 55%,#0f9488 100%);border-radius:12px;padding:0.85rem 1.25rem;display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;box-shadow:0 4px 16px rgba(0,106,97,0.3)">
     <div>
-      <div style="font-size:1.8rem;font-weight:800;color:#ffffff;letter-spacing:-0.02em">🎓 EduJuju</div>
-      <div style="font-size:0.85rem;color:rgba(255,255,255,0.88);margin-top:0.25rem">Hospital Infantil Dr. Juvêncio Mattos</div>
+      <div style="font-size:1.3rem;font-weight:800;color:#ffffff;letter-spacing:-0.02em">🎓 EduJuju</div>
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.88);margin-top:0.15rem">Hospital Infantil Dr. Juvêncio Mattos</div>
     </div>
     <div style="text-align:right">
-      <div style="display:inline-block;padding:0.3rem 0.85rem;border-radius:999px;background:rgba(255,255,255,0.18);font-size:0.72rem;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem">Relatório de Desempenho${setorFiltro ? ' — ' + esc(setorFiltro) : ''}</div>
-      <div style="font-size:0.85rem;color:rgba(255,255,255,0.88)">${today}</div>
+      <div style="display:inline-block;padding:0.2rem 0.7rem;border-radius:999px;background:rgba(255,255,255,0.18);font-size:0.62rem;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.25rem">Relatório de Desempenho${setorFiltro ? ' — ' + esc(setorFiltro) : ''}</div>
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.88)">${today}</div>
     </div>
   </div>
 
   <!-- Cards de métricas -->
-  ${incResumo ? `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem" class="no-break">
+  ${incResumo ? `<div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.85rem" class="no-break">
     ${statCard('🙋', adesaoPdf + '%', `Adesão — ${comecaramPdf} de ${cUsersPdf} começaram`, '#006a61', '#f0fdfa')}
     ${statCard('📊', mediaGeralPdf !== null ? mediaGeralPdf + '%' : '—', 'Média geral dos quizzes', '#0f766e', '#f0fdfa')}
     ${statCard('✅', totalConcluiram, 'Responderam todos os quizzes', '#15803d', '#f0fdf4')}
@@ -4891,7 +4891,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 
   <!-- Visão Geral de Participação -->
   ${incResumo ? sectionCard('Visão Geral de Participação', '👥', `
-    <div style="padding:1rem 1.25rem;font-size:0.85rem;color:#1e293b;line-height:1.9">
+    <div style="padding:0.5rem 1rem;font-size:0.75rem;color:#1e293b;line-height:1.6">
       <div>• <strong>Total de colaboradores mapeados:</strong> ${cUsersPdf}</div>
       <div>• <strong>Responderam ao menos 1 questão:</strong> ${usersArr.length} colaborador${usersArr.length !== 1 ? 'es' : ''}</div>
       <div>• <strong>Concluíram 100% dos quizzes:</strong> ${totalConcluiram} colaborador${totalConcluiram !== 1 ? 'es' : ''}</div>
@@ -4899,7 +4899,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 
   <!-- Resumo do Engajamento por Setor -->
   ${incResumo ? sectionCard('Resumo do Engajamento por Setor', '📈', `
-    <div style="padding:1rem 1.25rem;font-size:0.85rem;color:#1e293b;line-height:1.9">
+    <div style="padding:0.5rem 1rem;font-size:0.75rem;color:#1e293b;line-height:1.6">
       ${setorEngRows}
     </div>`) : ''}
 
@@ -4907,47 +4907,47 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
   ${incSetor ? sectionCard('Desempenho por Setor — todas as trilhas', '🏢',
     setorBodyRows
       ? legendaTrilhas + `<table><thead><tr><th style="${thStyle}">Setor</th>${setorHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${setorBodyRows}</tbody></table>`
-      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
+      : `<p style="padding:1rem;text-align:center;color:#9ca3af;font-size:0.75rem">Sem dados ainda — aguardando respostas dos alunos</p>`
   ) : ''}
 
   <!-- Notas dos Quizzes -->
   ${incQuizzes ? sectionCard('Notas dos Quizzes por Aluno — respondidos após os vídeos', '📝',
     quizBodyRows
       ? legendaTrilhas + `<table><thead><tr><th style="${thStyle}">Aluno</th>${quizHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${quizBodyRows}</tbody></table>`
-      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
+      : `<p style="padding:1rem;text-align:center;color:#9ca3af;font-size:0.75rem">Sem dados ainda — aguardando respostas dos alunos</p>`
   ) : ''}
 
   <!-- Notas das Avaliações -->
   ${incAvaliacoes ? sectionCard('Notas das Avaliações por Aluno', '📋',
     avBodyRows && avListPdf.length
       ? legendaAv + `<table><thead><tr><th style="${thStyle}">Aluno</th>${avHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${avBodyRows}</tbody></table>`
-      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — nenhuma avaliação concluída</p>`
+      : `<p style="padding:1rem;text-align:center;color:#9ca3af;font-size:0.75rem">Sem dados ainda — nenhuma avaliação concluída</p>`
   ) : ''}
 
   <!-- Ranking Individual -->
   ${incRanking ? sectionCard('Ranking Individual — desempenho por trilha', '🏆',
     rankBodyRows
       ? legendaTrilhas + `<table><thead><tr><th style="${thCStyle}">#</th><th style="${thStyle}">Nome</th>${rankHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${rankBodyRows}</tbody></table>`
-      : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
+      : `<p style="padding:1rem;text-align:center;color:#9ca3af;font-size:0.75rem">Sem dados ainda — aguardando respostas dos alunos</p>`
   ) : ''}
 
   <!-- Principais Dúvidas -->
   ${incDuvidas ? sectionCard('Principais Dúvidas — perguntas com maior taxa de erro', '🧠', (() => {
     const duvidasPdf = (principais_duvidas || []).filter(d => Number(d.total_respostas) >= 5)
-    if (!duvidasPdf.length) return `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem perguntas com pelo menos 5 respostas ainda</p>`
+    if (!duvidasPdf.length) return `<p style="padding:1rem;text-align:center;color:#9ca3af;font-size:0.75rem">Sem perguntas com pelo menos 5 respostas ainda</p>`
     const grupos = {}
     for (const d of duvidasPdf) {
       const key = d.trilha || '—'
       if (!grupos[key]) grupos[key] = []
       grupos[key].push(d)
     }
-    const thGrp = 'padding:0.5rem 0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#006a61;background:#f0fdfa;border-bottom:1px solid #e2e8f0'
+    const thGrp = 'padding:0.3rem 0.55rem;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#006a61;background:#f0fdfa;border-bottom:1px solid #e2e8f0'
     const rows = Object.entries(grupos).map(([trilha, itens]) => {
       const header = `<tr><td colspan="4" style="${thGrp}">${esc(trilha)}</td></tr>`
       const qRows = itens.map((d, i) => {
         const pct = Number(d.pct_erro) || 0
         const [bg, color] = pct >= 70 ? ['#fee2e2','#991b1b'] : pct >= 40 ? ['#fef3c7','#92400e'] : ['#d1fae5','#065f46']
-        const errBadge = `<span style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.73rem;font-weight:700;background:${bg};color:${color}">${pct}%</span>`
+        const errBadge = `<span style="display:inline-block;padding:0.12rem 0.45rem;border-radius:999px;font-size:0.7rem;font-weight:700;background:${bg};color:${color}">${pct}%</span>`
         const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
         return `<tr style="background:${rowBg}">
           <td style="${tdStyle}">${esc(d.pergunta || '—')}</td>
@@ -4970,9 +4970,9 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
   })()) : ''}
 
   <!-- Rodapé -->
-  <div style="margin-top:2.5rem;padding-top:1rem;border-top:2px solid #ccfbf1;display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:0.72rem;color:#94a3b8">💚 Gerado automaticamente pela plataforma EduJuju — Hospital Infantil Dr. Juvêncio Mattos</span>
-    <span style="font-size:0.72rem;color:#94a3b8">${today}</span>
+  <div style="margin-top:1rem;padding-top:0.5rem;border-top:2px solid #ccfbf1;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:0.62rem;color:#94a3b8">💚 Gerado automaticamente pela plataforma EduJuju — Hospital Infantil Dr. Juvêncio Mattos</span>
+    <span style="font-size:0.62rem;color:#94a3b8">${today}</span>
   </div>
 </div>
 <script>window.onload = () => { setTimeout(() => window.print(), 400) }<\/script>
