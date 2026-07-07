@@ -617,31 +617,39 @@
 
         <!-- Abas: conteúdo (na ordem do fluxo de criação) | acompanhamento -->
         <div class="admin-tabs" role="tablist" aria-label="Seções da gestão de conteúdo">
+          <span class="admin-tabs-label" aria-hidden="true">Conteúdo</span>
           <button class="admin-tab admin-tab-active" data-tab="trilhas" role="tab" aria-selected="true" aria-controls="tab-trilhas">
             <span class="material-symbols-outlined">route</span>
             Trilhas
+            <span class="admin-tab-count" id="tabCount-trilhas"></span>
           </button>
           <button class="admin-tab" data-tab="videos" role="tab" aria-selected="false" aria-controls="tab-videos">
             <span class="material-symbols-outlined">play_circle</span>
             Vídeos
+            <span class="admin-tab-count" id="tabCount-videos"></span>
           </button>
           <button class="admin-tab" data-tab="perguntas" role="tab" aria-selected="false" aria-controls="tab-perguntas">
             <span class="material-symbols-outlined">quiz</span>
             Perguntas
+            <span class="admin-tab-count" id="tabCount-perguntas"></span>
           </button>
           <button class="admin-tab" data-tab="artigos" role="tab" aria-selected="false" aria-controls="tab-artigos">
             <span class="material-symbols-outlined">article</span>
             Artigos
+            <span class="admin-tab-count" id="tabCount-artigos"></span>
           </button>
           <button class="admin-tab" data-tab="avaliacoes" role="tab" aria-selected="false" aria-controls="tab-avaliacoes">
             <span class="material-symbols-outlined">assignment</span>
             Avaliações
+            <span class="admin-tab-count" id="tabCount-avaliacoes"></span>
           </button>
           <button class="admin-tab" data-tab="documentos-admin" role="tab" aria-selected="false" aria-controls="tab-documentos-admin">
             <span class="material-symbols-outlined">description</span>
             Documentos
+            <span class="admin-tab-count" id="tabCount-documentos"></span>
           </button>
           <div class="admin-tabs-sep" aria-hidden="true"></div>
+          <span class="admin-tabs-label" aria-hidden="true">Análise</span>
           <button class="admin-tab" data-tab="dashboard" role="tab" aria-selected="false" aria-controls="tab-dashboard">
             <span class="material-symbols-outlined">monitoring</span>
             Dashboard
@@ -814,12 +822,12 @@
               <p style="font-size:0.8rem;color:var(--text-secondary);margin:0">Defina a ordem em que o aluno verá o conteúdo desta trilha. Documentos são opcionais e não travam o progresso.</p>
               <div id="sequenciaLista" style="display:flex;flex-direction:column;gap:0.5rem"></div>
               <div style="border-top:1px solid var(--outline-var);padding-top:1rem;display:flex;flex-direction:column;gap:0.5rem">
-                <p style="font-size:0.78rem;font-weight:600;margin:0;color:var(--text-secondary)">ADICIONAR AVALIAÇÃO</p>
+                <p style="font-size:0.78rem;font-weight:600;margin:0;color:var(--text-secondary)">ADICIONAR CONTEÚDO — vídeo, artigo ou avaliação</p>
                 <div style="display:flex;gap:0.5rem">
-                  <select id="selectAvaliacaoAdd" class="filter-select" style="flex:1">
-                    <option value="">Selecionar avaliação...</option>
+                  <select id="selectItemAdd" class="filter-select" style="flex:1">
+                    <option value="">Selecionar conteúdo...</option>
                   </select>
-                  <button class="btn-primary" id="btnAddAvaliacaoSequencia" style="white-space:nowrap">
+                  <button class="btn-primary" id="btnAddItemSequencia" style="white-space:nowrap">
                     <span class="material-symbols-outlined">add</span> Adicionar
                   </button>
                 </div>

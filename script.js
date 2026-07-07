@@ -1115,6 +1115,22 @@ function switchAdminTab(tabName) {
   if (tabName === 'dashboard')         loadDashboard()
 }
 
+// Contadores de itens nas abas da Gestão
+async function loadAdminTabCounts() {
+  const head = tabela => supabase.from(tabela).select('*', { count: 'exact', head: true })
+  const [t, v, q, a, av, d] = await Promise.all([
+    head('trilhas'), head('videos'), head('questoes_sala_de_aula'),
+    head('artigos'), head('avaliacoes'), head('documentos')
+  ])
+  const set = (id, c) => { const el = document.getElementById(id); if (el) el.textContent = c ?? '' }
+  set('tabCount-trilhas', t.count)
+  set('tabCount-videos', v.count)
+  set('tabCount-perguntas', q.count)
+  set('tabCount-artigos', a.count)
+  set('tabCount-avaliacoes', av.count)
+  set('tabCount-documentos', d.count)
+}
+
 // Carrega dados ao entrar em páginas específicas
 const _baseShowPage = window.showPage
 window.showPage = function(pageId) {
@@ -1124,6 +1140,7 @@ window.showPage = function(pageId) {
     const salva = localStorage.getItem('adminTabAtiva')
     const existe = salva && document.querySelector(`.admin-tab[data-tab="${salva}"]`)
     switchAdminTab(existe ? salva : ADMIN_TAB_PADRAO)
+    loadAdminTabCounts()
   }
   if (pageId === 'home')       loadHome()
   if (pageId === 'sala')       loadSalaDeAula()
@@ -6104,11 +6121,12 @@ async function loadAdminTrilhas() {
   if (!listEl) return
   listEl.innerHTML = '<div class="list-empty"><p>Carregando...</p></div>'
 
-  const [{ data: trilhasCad }, { data: vids }, { data: arts }, { data: avs }] = await Promise.all([
+  const [{ data: trilhasCad }, { data: vids }, { data: arts }, { data: avs }, { data: seqRows }] = await Promise.all([
     supabase.from('trilhas').select('*').order('ordem', { ascending: true }),
-    supabase.from('videos').select('categoria').not('categoria', 'is', null),
-    supabase.from('artigos').select('categoria').not('categoria', 'is', null),
-    supabase.from('avaliacoes').select('categoria').not('categoria', 'is', null)
+    supabase.from('videos').select('id, title, categoria, visivel'),
+    supabase.from('artigos').select('id, titulo, categoria, visivel'),
+    supabase.from('avaliacoes').select('id, titulo, categoria, visivel'),
+    supabase.from('trilha_conteudo').select('trilha_id, item_id, tipo')
   ])
 
   // Categorias existentes nos conteúdos mas ainda não na tabela trilhas
@@ -6116,6 +6134,25 @@ async function loadAdminTrilhas() {
   const catsExistentes = new Set()
   ;[...(vids||[]), ...(arts||[]), ...(avs||[])].forEach(r => r.categoria?.trim() && catsExistentes.add(r.categoria.trim()))
   const naoFormalizadas = Array.from(catsExistentes).filter(c => !nomesCadastrados.has(c.toLowerCase()))
+
+  // Resumo do conteúdo de cada trilha + itens presentes em alguma sequência
+  const seqCount = {}
+  const naSequencia = new Set()
+  for (const r of (seqRows || [])) {
+    const k = String(r.trilha_id)
+    if (!seqCount[k]) seqCount[k] = {}
+    seqCount[k][r.tipo] = (seqCount[k][r.tipo] || 0) + 1
+    naSequencia.add(`${r.tipo}_${String(r.item_id)}`)
+  }
+
+  // Conteúdo visível fora de qualquer sequência = invisível para os alunos
+  // (sem nenhuma sequência cadastrada o catálogo mostra tudo, então não há órfãos)
+  const orfaos = []
+  if ((seqRows || []).length) {
+    for (const v of (vids || [])) if (v.visivel !== false && !naSequencia.has(`video_${String(v.id)}`)) orfaos.push({ titulo: v.title, tipo: 'vídeo' })
+    for (const a of (arts || [])) if (a.visivel !== false && !naSequencia.has(`artigo_${String(a.id)}`)) orfaos.push({ titulo: a.titulo, tipo: 'artigo' })
+    for (const a of (avs || [])) if (a.visivel !== false && !naSequencia.has(`avaliacao_${String(a.id)}`)) orfaos.push({ titulo: a.titulo, tipo: 'avaliação' })
+  }
 
   const total = (trilhasCad?.length || 0) + naoFormalizadas.length
   const countEl = document.getElementById('trilhasCount')
@@ -6128,6 +6165,17 @@ async function loadAdminTrilhas() {
     const aviso = document.createElement('div')
     aviso.style.cssText = 'background:var(--primary-soft);border-radius:var(--radius);padding:0.75rem 1rem;margin-bottom:0.75rem;font-size:0.82rem;color:var(--primary)'
     aviso.innerHTML = `<strong>${naoFormalizadas.length} trilha${naoFormalizadas.length>1?'s':''} sem cadastro:</strong> ${naoFormalizadas.map(c=>`<span style="font-weight:600">${escHtml(c)}</span>`).join(', ')} — clique em <strong>Nova Trilha</strong> para adicionar imagem e descrição.`
+    listEl.appendChild(aviso)
+  }
+
+  // Aviso de conteúdo visível fora de qualquer trilha (invisível para os alunos)
+  if (orfaos.length) {
+    const plural = orfaos.length > 1
+    const aviso = document.createElement('div')
+    aviso.style.cssText = 'background:#fff8e1;border:1px solid rgba(245,127,23,0.4);border-radius:var(--radius);padding:0.75rem 1rem;margin-bottom:0.75rem;font-size:0.82rem;color:#8d5c00;line-height:1.6'
+    aviso.innerHTML = `<strong>⚠️ ${orfaos.length} conteúdo${plural ? 's' : ''} visíve${plural ? 'is' : 'l'} fora de qualquer trilha</strong> — não aparece${plural ? 'm' : ''} para os alunos: ` +
+      orfaos.map(o => `<span style="font-weight:600">${escHtml(o.titulo)}</span> <span style="opacity:0.75">(${o.tipo})</span>`).join(', ') +
+      `. Abra a <strong>sequência da trilha</strong> e adicione.`
     listEl.appendChild(aviso)
   }
 
@@ -6149,12 +6197,23 @@ async function loadAdminTrilhas() {
       ? `<img src="${t.imagem_url}" style="width:56px;height:56px;object-fit:cover;border-radius:var(--radius);flex-shrink:0">`
       : `<div style="width:56px;height:56px;border-radius:var(--radius);background:var(--primary-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span class="material-symbols-outlined icon-filled" style="color:var(--primary)">route</span></div>`
 
+    const c = seqCount[String(t.id)] || {}
+    const resumoConteudo = [
+      c.video     ? `${c.video} vídeo${c.video > 1 ? 's' : ''}` : null,
+      c.artigo    ? `${c.artigo} artigo${c.artigo > 1 ? 's' : ''}` : null,
+      c.avaliacao ? `${c.avaliacao} avaliaç${c.avaliacao > 1 ? 'ões' : 'ão'}` : null,
+      c.documento ? `${c.documento} documento${c.documento > 1 ? 's' : ''}` : null
+    ].filter(Boolean).join(' · ') || 'Sequência vazia — nada aparece para os alunos'
+
     div.innerHTML = `
       ${thumb}
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary)">${escHtml(t.nome)}</div>
         ${t.descricao ? `<div style="font-size:0.78rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.descricao)}</div>` : ''}
-        <span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:999px;background:${t.visivel ? 'var(--primary-soft)' : 'var(--surface)'};color:${t.visivel ? 'var(--primary)' : 'var(--text-secondary)'}">${t.visivel ? 'Visível' : 'Oculta'}</span>
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-top:0.2rem">
+          <span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:999px;background:${t.visivel ? 'var(--primary-soft)' : 'var(--surface)'};color:${t.visivel ? 'var(--primary)' : 'var(--text-secondary)'}">${t.visivel ? 'Visível' : 'Oculta'}</span>
+          <span style="font-size:0.72rem;color:var(--text-secondary)">${resumoConteudo}</span>
+        </div>
       </div>
       <div style="display:flex;gap:0.4rem;flex-shrink:0">
         <button class="btn-icon" onclick="openSequenciaTrilha('${t.id}','${escHtml(t.nome)}')" title="Gerenciar sequência"><span class="material-symbols-outlined">reorder</span></button>
@@ -6287,7 +6346,7 @@ window.openSequenciaTrilha = async function(trilhaId, trilhaNome) {
   _sequenciaTrilhaId = trilhaId
   document.getElementById('modalSequenciaTrilhaTitulo').textContent = `Sequência — ${trilhaNome}`
   document.getElementById('modalSequenciaTrilha').classList.add('open')
-  await Promise.all([loadSequenciaTrilha(), loadAvaliacoesParaAdicionar()])
+  await Promise.all([loadSequenciaTrilha(), loadItensParaAdicionar()])
 }
 
 async function loadSequenciaTrilha() {
@@ -6392,29 +6451,37 @@ async function loadSequenciaTrilha() {
   })
 }
 
-async function loadAvaliacoesParaAdicionar() {
-  const [{ data: todas }, { data: jaAdicionadas }] = await Promise.all([
-    supabase.from('avaliacoes').select('id, titulo').order('titulo', { ascending: true }),
-    supabase.from('trilha_conteudo').select('item_id').eq('trilha_id', _sequenciaTrilhaId).eq('tipo', 'avaliacao')
+async function loadItensParaAdicionar() {
+  const [{ data: vids }, { data: arts }, { data: avs }, { data: jaAdicionados }] = await Promise.all([
+    supabase.from('videos').select('id, title').order('ordem', { ascending: true }),
+    supabase.from('artigos').select('id, titulo').order('ordem', { ascending: true }),
+    supabase.from('avaliacoes').select('id, titulo').order('ordem', { ascending: true }),
+    supabase.from('trilha_conteudo').select('item_id, tipo').eq('trilha_id', _sequenciaTrilhaId)
   ])
   // String() dos dois lados — imune ao tipo da coluna item_id no banco
-  const jaIds = new Set((jaAdicionadas || []).map(r => String(r.item_id)))
-  const disponiveis = (todas || []).filter(av => !jaIds.has(String(av.id)))
+  const ja = new Set((jaAdicionados || []).map(r => `${r.tipo}_${String(r.item_id)}`))
 
-  const sel = document.getElementById('selectAvaliacaoAdd')
-  sel.innerHTML = '<option value="">Selecionar avaliação...</option>'
-  disponiveis.forEach(av => {
-    const opt = document.createElement('option')
-    opt.value = av.id
-    opt.textContent = av.titulo
-    sel.appendChild(opt)
-  })
+  const grupo = (label, tipo, itens, tituloProp) => {
+    const disponiveis = (itens || []).filter(i => !ja.has(`${tipo}_${String(i.id)}`))
+    if (!disponiveis.length) return ''
+    return `<optgroup label="${escHtml(label)}">` +
+      disponiveis.map(i => `<option value="${tipo}_${i.id}">${escHtml(i[tituloProp])}</option>`).join('') +
+      '</optgroup>'
+  }
+
+  const sel = document.getElementById('selectItemAdd')
+  if (!sel) return
+  sel.innerHTML = '<option value="">Selecionar conteúdo...</option>' +
+    grupo('🎬 Vídeos', 'video', vids, 'title') +
+    grupo('📄 Artigos', 'artigo', arts, 'titulo') +
+    grupo('📋 Avaliações', 'avaliacao', avs, 'titulo')
 }
+
 
 window.removerItemSequencia = async function(id) {
   if (!confirm('Remover este item da sequência da trilha?')) return
   await supabase.from('trilha_conteudo').delete().eq('id', id)
-  await Promise.all([loadSequenciaTrilha(), loadAvaliacoesParaAdicionar()])
+  await Promise.all([loadSequenciaTrilha(), loadItensParaAdicionar()])
 }
 
 window.toggleTemQuestoes = async function(id, temAtual) {
@@ -6426,9 +6493,12 @@ document.getElementById('closeModalSequenciaTrilha')?.addEventListener('click', 
   document.getElementById('modalSequenciaTrilha').classList.remove('open')
 })
 
-document.getElementById('btnAddAvaliacaoSequencia')?.addEventListener('click', async () => {
-  const avId = document.getElementById('selectAvaliacaoAdd').value
-  if (!avId) return
+document.getElementById('btnAddItemSequencia')?.addEventListener('click', async () => {
+  const val = document.getElementById('selectItemAdd').value
+  if (!val) return
+  const sep = val.indexOf('_')
+  const tipo   = val.slice(0, sep)
+  const itemId = val.slice(sep + 1)
 
   const { data } = await supabase
     .from('trilha_conteudo')
@@ -6440,10 +6510,10 @@ document.getElementById('btnAddAvaliacaoSequencia')?.addEventListener('click', a
   const maxOrdem = data?.[0]?.ordem ?? -1
   await supabase.from('trilha_conteudo').insert({
     trilha_id: _sequenciaTrilhaId,
-    tipo: 'avaliacao',
-    item_id: Number(avId),
+    tipo,
+    item_id: Number(itemId),
     ordem: maxOrdem + 1,
     obrigatorio: true
   })
-  await Promise.all([loadSequenciaTrilha(), loadAvaliacoesParaAdicionar()])
+  await Promise.all([loadSequenciaTrilha(), loadItensParaAdicionar()])
 })
