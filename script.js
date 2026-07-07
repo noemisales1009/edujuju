@@ -1881,7 +1881,14 @@ async function loadCatalogo() {
     grid.innerHTML = ''
     _catalogItems = allItems
   }
-  _catalogItems.forEach(v => {
+  const itemConcluido = it => {
+    if (it._tipo === 'artigo')    return getArtigoProgress(it.id) === 'completed'
+    if (it._tipo === 'avaliacao') return getAvaliacaoProgress(it.id) === 'completed'
+    return getVideoProgress(it.id) === 'completed'
+  }
+  const isAdminCat = currentUser && ['adm','super'].includes(window._currentProfile?.access_level)
+
+  _catalogItems.forEach((v, idx) => {
     const isArtigo    = v._tipo === 'artigo'
     const isAvaliacao = v._tipo === 'avaliacao'
     const isVideo     = v._tipo === 'video'
@@ -1889,15 +1896,20 @@ async function loadCatalogo() {
     const thumb    = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : (v.imagem_url || null)
     const progress    = isVideo ? getVideoProgress(v.id) : isArtigo ? getArtigoProgress(v.id) : getAvaliacaoProgress(v.id)
     const isConcluido = progress === 'completed'
+    // Bloqueio sequencial: libera o 1º item, os já iniciados/concluídos
+    // e o seguinte de um item concluído (admins veem tudo liberado)
+    const anteriorOk  = idx === 0 || itemConcluido(_catalogItems[idx - 1])
+    const bloqueado   = !isAdminCat && !isConcluido && progress !== 'started' && !anteriorOk
     const badgeCls = isConcluido ? 'badge-tag' : progress === 'started' ? 'badge-progress' : 'badge-neutral'
-    const badgeTxt = isConcluido    ? 'Concluído'
+    const badgeTxt = bloqueado      ? '🔒 Bloqueado'
+                   : isConcluido    ? 'Concluído'
                    : isAvaliacao    ? 'Avaliação'
                    : isArtigo       ? 'Leitura'
                    : progress === 'started' ? 'Em Andamento'
                    : 'Disponível'
     const pct      = progress === 'completed' ? 100 : progress === 'started' ? 50 : 0
     const cardIcon = isAvaliacao ? 'assignment' : isArtigo ? 'article' : 'play_circle'
-    const overlayIcon = isAvaliacao ? 'assignment' : isArtigo ? 'menu_book' : 'play_arrow'
+    const overlayIcon = bloqueado ? 'lock' : isAvaliacao ? 'assignment' : isArtigo ? 'menu_book' : 'play_arrow'
     const title    = isVideo ? v.title : v.titulo
     const desc     = isVideo ? v.description : v.descricao
 
@@ -1942,6 +1954,14 @@ async function loadCatalogo() {
         article.appendChild(overlay)
         article.style.outline = '2px dashed var(--primary)'
       }
+    } else if (bloqueado) {
+      const prev = _catalogItems[idx - 1]
+      const prevNome = prev ? (prev._tipo === 'video' ? prev.title : prev.titulo) : 'o conteúdo anterior'
+      const avisar = () => showToast(`⚠️ Conclua "${prevNome}" para desbloquear este conteúdo.`, 'warning')
+      article.style.opacity = '0.55'
+      article.querySelector('.card-img img')?.style.setProperty('filter', 'grayscale(0.8)')
+      article.addEventListener('click', avisar)
+      article.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); avisar() } })
     } else {
       const handler = isAvaliacao ? () => openAvaliacao(v) : isArtigo ? () => openArtigo(v) : () => openVideoSala(v)
       article.addEventListener('click', handler)
@@ -3451,7 +3471,8 @@ async function loadReports() {
     { data: principais_duvidas },
     { data: avaliacoesDb },
     { data: notasAvaliacao },
-    { data: questoesAvRows }
+    { data: questoesAvRows },
+    { data: videosVistosRows }
   ] = await Promise.all([
     supabase.from('trilhas').select('*', { count: 'exact', head: true }),
     supabase.from('videos').select('*', { count: 'exact', head: true }),
@@ -3463,7 +3484,8 @@ async function loadReports() {
     supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(30),
     supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
     fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')),
-    supabase.from('questoes_avaliacao').select('avaliacao_id')
+    supabase.from('questoes_avaliacao').select('avaliacao_id'),
+    fetchAll(() => supabase.from('progresso_usuario').select('user_id, item_id').eq('item_tipo', 'video').eq('concluido', true))
   ])
 
   // Perguntas = questões dos quizzes (sala de aula) + questões das avaliações
@@ -3527,7 +3549,7 @@ async function loadReports() {
   const userMap = {}
   for (const row of (porUsuarioTrilha || [])) {
     if (!userMap[row.user_id]) {
-      userMap[row.user_id] = { name: row.name, email: row.email, sector: row.sector, role: row.role, trilhas: {} }
+      userMap[row.user_id] = { id: row.user_id, name: row.name, email: row.email, sector: row.sector, role: row.role, trilhas: {} }
     }
     userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas), acertos: Number(row.acertos) || 0 }
   }
@@ -3701,6 +3723,19 @@ async function loadReports() {
   </table>` : semDados(2 + trilhaList.length)
 
   // ── QUEM RESPONDEU OS QUIZZES ──
+  // Vídeos concluídos registrados em progresso_usuario
+  const vistosMap = {}
+  for (const r of (videosVistosRows || [])) {
+    if (!vistosMap[r.user_id]) vistosMap[r.user_id] = new Set()
+    vistosMap[r.user_id].add(String(r.item_id))
+  }
+  // Um vídeo conta como assistido se foi concluído OU se o aluno
+  // respondeu alguma questão dele (as perguntas são ligadas a vídeos específicos)
+  const videosAll = trilhas || []
+  const videosAssistidos = u => videosAll.filter(v =>
+    vistosMap[u.id]?.has(String(v.id)) || (u.trilhas[v.id]?.respondidas || 0) > 0
+  )
+
   const totalVideos = trilhaList.length
   const respondeuAlgo = usersArr.filter(u => Object.values(u.trilhas).some(d => d.respondidas > 0))
   const respondeuTudo = usersArr.filter(u =>
@@ -3728,11 +3763,17 @@ async function loadReports() {
         ? `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#fff8e1;color:#f57f17">⏳ Incompleto (${videosCompletos}/${totalVideos} vídeos)</span>`
         : `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#f5f5f5;color:#9e9e9e">Não iniciou</span>`
 
+    const vistos = videosAssistidos(u)
+    const vistosCell = `
+      <strong>${vistos.length} de ${videosAll.length}</strong>
+      ${vistos.length ? `<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem;max-width:240px;white-space:normal">${vistos.map(v => escHtml(v.title.substring(0, 40))).join('<br>')}</div>` : ''}`
+
     return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <td style="${tdS}">
         <span style="font-weight:500">${escHtml(u.name || u.email || '—')}</span>
         <div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')} ${u.role ? '· ' + escHtml(u.role) : ''}</div>
       </td>
+      <td style="${tdS}">${vistosCell}</td>
       <td style="${tdC}">${totalRespondidas}</td>
       <td style="${tdC}">${totalAcertos}</td>
       <td style="${tdC}">${pctAcerto !== null ? notaBadge(pctAcerto) : '—'}</td>
@@ -3765,13 +3806,14 @@ async function loadReports() {
       data-total-alunos="${cUsers || 0}">
       <thead style="background:var(--surface)"><tr>
         <th style="${thS}">Aluno</th>
+        <th style="${thS};min-width:180px">Vídeos<br>Assistidos</th>
         <th style="${thC}">Questões<br>Respondidas</th>
         <th style="${thC}">Acertos</th>
         <th style="${thC}">% Acerto</th>
         <th style="${thS};min-width:160px">Status</th>
       </tr></thead>
       <tbody>${respondeuRows}</tbody>
-    </table>` : semDados(5)
+    </table>` : semDados(6)
 
   grid.innerHTML = `
     <div class="report-card">
