@@ -1693,17 +1693,21 @@ ul { list-style: none; }
 /* ---- 16. Admin Tabs ---- */
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap; /* nunca esconde abas: quebra linha em vez de rolar */
   gap: 0.25rem;
   background: var(--surface-mid);
   border-radius: var(--r-md);
   padding: 0.25rem;
   margin-bottom: 1.5rem;
   width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
 }
-.admin-tabs::-webkit-scrollbar { display: none; }
+.admin-tabs-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--outline-var);
+  margin: 0.25rem 0.375rem;
+  flex-shrink: 0;
+}
 .admin-tab {
   display: flex;
   align-items: center;
@@ -1716,15 +1720,16 @@ ul { list-style: none; }
   white-space: nowrap;
   flex-shrink: 0;
 }
-/* Tablet: ícone + texto, rola horizontalmente */
+/* Tablet: ícone em cima do texto, abas compactas */
 @media (max-width: 900px) {
   .admin-tabs { justify-content: flex-start; gap: 0.2rem; }
   .admin-tab  { flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.65rem; min-width: 58px; justify-content: center; align-items: center; font-size: 0.65rem; }
   .admin-tab .material-symbols-outlined { font-size: 1.2rem; }
 }
-/* Celular: 2 linhas de 3 abas */
+/* Celular: grade de 3 colunas */
 @media (max-width: 480px) {
-  .admin-tabs { flex-wrap: wrap; gap: 0.25rem; overflow-x: visible; }
+  .admin-tabs { gap: 0.25rem; }
+  .admin-tabs-sep { display: none; }
   .admin-tab  { flex: 1 1 calc(33.33% - 0.25rem); flex-direction: column; gap: 0.1rem; padding: 0.55rem 0.25rem; justify-content: center; align-items: center; font-size: 0.65rem; min-width: 0; }
   .admin-tab .material-symbols-outlined { font-size: 1.2rem; }
 }

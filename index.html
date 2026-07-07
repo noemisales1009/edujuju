@@ -611,44 +611,49 @@
         <div class="admin-header">
           <div>
             <h1 class="page-title">Gestão de Conteúdo</h1>
-            <p class="page-subtitle">Gerencie vídeos, perguntas e acompanhe relatórios</p>
+            <p class="page-subtitle">Monte trilhas, gerencie conteúdos e acompanhe o desempenho</p>
           </div>
         </div>
 
-        <!-- Abas -->
-        <div class="admin-tabs">
-          <button class="admin-tab admin-tab-active" data-tab="perguntas">
-            <span class="material-symbols-outlined">quiz</span>
-            Perguntas
-          </button>
-          <button class="admin-tab" data-tab="videos">
-            <span class="material-symbols-outlined">play_circle</span>
-            Vídeos
-          </button>
-          <button class="admin-tab" data-tab="documentos-admin">
-            <span class="material-symbols-outlined">description</span>
-            Documentos
-          </button>
-          <button class="admin-tab" data-tab="artigos">
-            <span class="material-symbols-outlined">article</span>
-            Artigos
-          </button>
-          <button class="admin-tab" data-tab="avaliacoes">
-            <span class="material-symbols-outlined">assignment</span>
-            Avaliações
-          </button>
-          <button class="admin-tab" data-tab="trilhas">
+        <!-- Abas: conteúdo (na ordem do fluxo de criação) | acompanhamento -->
+        <div class="admin-tabs" role="tablist" aria-label="Seções da gestão de conteúdo">
+          <button class="admin-tab admin-tab-active" data-tab="trilhas" role="tab" aria-selected="true" aria-controls="tab-trilhas">
             <span class="material-symbols-outlined">route</span>
             Trilhas
           </button>
-          <button class="admin-tab" data-tab="relatorios">
+          <button class="admin-tab" data-tab="videos" role="tab" aria-selected="false" aria-controls="tab-videos">
+            <span class="material-symbols-outlined">play_circle</span>
+            Vídeos
+          </button>
+          <button class="admin-tab" data-tab="perguntas" role="tab" aria-selected="false" aria-controls="tab-perguntas">
+            <span class="material-symbols-outlined">quiz</span>
+            Perguntas
+          </button>
+          <button class="admin-tab" data-tab="artigos" role="tab" aria-selected="false" aria-controls="tab-artigos">
+            <span class="material-symbols-outlined">article</span>
+            Artigos
+          </button>
+          <button class="admin-tab" data-tab="avaliacoes" role="tab" aria-selected="false" aria-controls="tab-avaliacoes">
+            <span class="material-symbols-outlined">assignment</span>
+            Avaliações
+          </button>
+          <button class="admin-tab" data-tab="documentos-admin" role="tab" aria-selected="false" aria-controls="tab-documentos-admin">
+            <span class="material-symbols-outlined">description</span>
+            Documentos
+          </button>
+          <div class="admin-tabs-sep" aria-hidden="true"></div>
+          <button class="admin-tab" data-tab="dashboard" role="tab" aria-selected="false" aria-controls="tab-dashboard">
+            <span class="material-symbols-outlined">monitoring</span>
+            Dashboard
+          </button>
+          <button class="admin-tab" data-tab="relatorios" role="tab" aria-selected="false" aria-controls="tab-relatorios">
             <span class="material-symbols-outlined">bar_chart</span>
             Relatórios
           </button>
         </div>
 
         <!-- Aba: Perguntas -->
-        <div class="admin-tab-pane active" id="tab-perguntas">
+        <div class="admin-tab-pane" id="tab-perguntas">
           <div class="tab-toolbar">
             <span class="tab-count" id="questionsCount">0 perguntas</span>
             <button class="btn-primary" id="btnAddQuiz">
@@ -741,7 +746,7 @@
         </div>
 
         <!-- Aba: Trilhas -->
-        <div class="admin-tab-pane" id="tab-trilhas">
+        <div class="admin-tab-pane active" id="tab-trilhas">
           <div class="tab-toolbar">
             <span class="tab-count" id="trilhasCount">0 trilhas</span>
             <button class="btn-primary" id="btnAddTrilha">
@@ -821,6 +826,11 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Aba: Dashboard -->
+        <div class="admin-tab-pane" id="tab-dashboard">
+          <div id="dashboardGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem"></div>
         </div>
 
         <!-- Aba: Relatórios -->

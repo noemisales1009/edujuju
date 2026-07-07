@@ -1073,17 +1073,38 @@ document.querySelectorAll('.card[tabindex="0"]').forEach(card => {
 // ============================================
 // ADMIN — Abas
 // ============================================
+const ADMIN_TAB_PADRAO = 'trilhas'
+
 document.querySelectorAll('.admin-tab').forEach(tab => {
   tab.addEventListener('click', () => switchAdminTab(tab.dataset.tab))
 })
+document.querySelectorAll('.admin-tab-pane').forEach(p => p.setAttribute('role', 'tabpanel'))
+
+// Navegação por setas do teclado entre as abas
+document.querySelector('.admin-tabs')?.addEventListener('keydown', e => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+  const tabs = [...document.querySelectorAll('.admin-tab')]
+  const atual = tabs.findIndex(t => t.classList.contains('admin-tab-active'))
+  let alvo = atual
+  if (e.key === 'ArrowLeft')  alvo = (atual - 1 + tabs.length) % tabs.length
+  if (e.key === 'ArrowRight') alvo = (atual + 1) % tabs.length
+  if (e.key === 'Home')       alvo = 0
+  if (e.key === 'End')        alvo = tabs.length - 1
+  e.preventDefault()
+  tabs[alvo].focus()
+  switchAdminTab(tabs[alvo].dataset.tab)
+})
 
 function switchAdminTab(tabName) {
-  document.querySelectorAll('.admin-tab').forEach(t =>
-    t.classList.toggle('admin-tab-active', t.dataset.tab === tabName)
-  )
+  document.querySelectorAll('.admin-tab').forEach(t => {
+    const ativa = t.dataset.tab === tabName
+    t.classList.toggle('admin-tab-active', ativa)
+    t.setAttribute('aria-selected', ativa)
+  })
   document.querySelectorAll('.admin-tab-pane').forEach(p =>
     p.classList.toggle('active', p.id === 'tab-' + tabName)
   )
+  localStorage.setItem('adminTabAtiva', tabName)
   if (tabName === 'videos')            loadVideos()
   if (tabName === 'perguntas')         loadQuestions()
   if (tabName === 'relatorios')        loadReports()
@@ -1091,6 +1112,7 @@ function switchAdminTab(tabName) {
   if (tabName === 'artigos')           loadAdminArtigos()
   if (tabName === 'avaliacoes')        loadAdminAvaliacoes()
   if (tabName === 'trilhas')           loadAdminTrilhas()
+  if (tabName === 'dashboard')         loadDashboard()
 }
 
 // Carrega dados ao entrar em páginas específicas
@@ -1098,9 +1120,10 @@ const _baseShowPage = window.showPage
 window.showPage = function(pageId) {
   _baseShowPage(pageId)
   if (pageId === 'admin') {
-    loadQuestions()
-    loadVideos()
-    loadReports()
+    // Reabre a última aba usada e carrega só ela
+    const salva = localStorage.getItem('adminTabAtiva')
+    const existe = salva && document.querySelector(`.admin-tab[data-tab="${salva}"]`)
+    switchAdminTab(existe ? salva : ADMIN_TAB_PADRAO)
   }
   if (pageId === 'home')       loadHome()
   if (pageId === 'sala')       loadSalaDeAula()
@@ -2509,15 +2532,25 @@ async function openAvaliacao(av) {
     return
   }
 
+  // Respostas já gravadas no banco — retomada: sair no meio não zera a prova,
+  // e cada pergunta só pode ser respondida uma vez (primeira resposta vale)
+  const { data: respExist } = await supabase.from('respostas_avaliacao')
+    .select('question_id, is_correct')
+    .eq('user_id', currentUser.id)
+    .eq('avaliacao_id', av.id)
+  const jaRespondidas = new Set((respExist || []).map(r => r.question_id))
+  const pendentes = questoes.filter(q => !jaRespondidas.has(q.id))
+
   let qIdx = 0
-  let acertos = 0
+  let acertos = (respExist || []).filter(r => r.is_correct).length
   const respostas = {}
 
   function renderQ() {
-    const q = questoes[qIdx]
+    const q = pendentes[qIdx]
+    const numGlobal = questoes.length - pendentes.length + qIdx + 1
     conteudo.innerHTML = `
       <div class="quiz-card">
-        <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem">Pergunta ${qIdx+1} de ${questoes.length}</p>
+        <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem">Pergunta ${numGlobal} de ${questoes.length}</p>
         <p style="font-weight:600;margin-bottom:1rem">${escHtml(q.question)}</p>
         <div class="quiz-options" id="avOptions">
           ${[q.option_a, q.option_b, q.option_c, q.option_d]
@@ -2541,15 +2574,22 @@ async function openAvaliacao(av) {
       const isCorrect = oi === (q.correct_index ?? 0)
       if (isCorrect) acertos++
       respostas[q.id] = isCorrect
+      // Grava a resposta no banco na hora (primeira resposta é definitiva)
+      supabase.from('respostas_avaliacao').upsert(
+        { user_id: currentUser.id, avaliacao_id: av.id, question_id: q.id, chosen_index: oi, is_correct: isCorrect },
+        { onConflict: 'user_id,question_id', ignoreDuplicates: true }
+      ).then(({ error }) => {
+        if (error) console.error('[Avaliação] Erro ao salvar resposta:', error)
+      })
       conteudo.querySelectorAll('.quiz-option').forEach(l => { l.style.pointerEvents = 'none' })
       conteudo.querySelector(`.quiz-option[data-oi="${q.correct_index ?? 0}"]`)?.classList.add('correct')
       if (!isCorrect) conteudo.querySelector(`.quiz-option[data-oi="${oi}"]`)?.classList.add('wrong')
       const fb = document.getElementById('avFeedback')
       fb.className = `quiz-feedback ${isCorrect ? 'ok' : 'err'}`
       fb.innerHTML = isCorrect ? '<strong>✓ Correto!</strong>' : '<strong>✗ Incorreta.</strong> A correta está em verde.'
-      btn.textContent = qIdx < questoes.length - 1 ? 'Próxima ›' : 'Ver Resultado'
+      btn.textContent = qIdx < pendentes.length - 1 ? 'Próxima ›' : 'Ver Resultado'
       btn.onclick = () => {
-        if (qIdx < questoes.length - 1) {
+        if (qIdx < pendentes.length - 1) {
           qIdx++
           renderQ()
           document.querySelector('#page-avaliacao .main-content, #page-avaliacao')?.scrollTo({ top: 0, behavior: 'smooth' })
@@ -2590,7 +2630,9 @@ async function openAvaliacao(av) {
     _avAnexarProximo({ next: proxItem2 })
   }
 
-  renderQ()
+  // Se já respondeu tudo (ex.: saiu na última pergunta), vai direto pro resultado
+  if (!pendentes.length) mostrarResultado()
+  else renderQ()
 }
 window.openAvaliacao = openAvaliacao
 
@@ -3454,6 +3496,342 @@ document.getElementById('formQuiz').addEventListener('submit', async e => {
 })
 
 // ============================================
+// ADMIN — DASHBOARD
+// ============================================
+let _evolAlunosDash = {}
+let _engAlunosDash = {}
+
+// Modal com a lista de alunos de um setor (clicado nos gráficos do dashboard)
+function mostrarAlunosDash(tipo, setor) {
+  const lista = (tipo === 'evol' ? _evolAlunosDash[setor] : _engAlunosDash[setor]) || []
+  const titulo = setor === '__geral' ? 'Geral — todos os setores' : setor
+
+  let overlay = document.getElementById('dashListaAlunos')
+  if (!overlay) {
+    overlay = document.createElement('div')
+    overlay.id = 'dashListaAlunos'
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:1rem'
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none' })
+    document.body.appendChild(overlay)
+  }
+  overlay.style.display = 'flex'
+
+  const badge = (bg, cor, txt) => `<span style="padding:0.1rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:700;background:${bg};color:${cor};white-space:nowrap">${txt}</span>`
+  const linhas = tipo === 'evol'
+    ? [...lista].sort((a, b) => (a.pos - a.pre) - (b.pos - b.pre)).map(a => {
+        const d = Math.round(a.pos) - Math.round(a.pre)
+        return `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0;border-bottom:1px solid var(--border)">
+          <span style="flex:1;font-size:0.82rem;font-weight:500;color:var(--text-primary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(a.nome || '—')}</span>
+          <span style="font-size:0.75rem;color:var(--text-secondary);white-space:nowrap">${Math.round(a.pre)}% → <strong style="color:var(--text-primary)">${Math.round(a.pos)}%</strong></span>
+          ${badge(d >= 0 ? '#e8f5e9' : '#ffebee', d >= 0 ? '#2e7d32' : '#c62828', `${d >= 0 ? '▲ +' : '▼ −'}${Math.abs(d)} pp`)}
+        </div>`
+      }).join('')
+    : [...lista].sort((a, b) => (b.concluiu - a.concluiu) || (a.nome || '').localeCompare(b.nome || '')).map(a => `
+        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0;border-bottom:1px solid var(--border)">
+          <span style="flex:1;font-size:0.82rem;font-weight:500;color:var(--text-primary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(a.nome || '—')}</span>
+          ${a.concluiu ? badge('#e8f5e9', '#2e7d32', '✅ Concluiu tudo') : badge('#fff8e1', '#f57f17', '⏳ Em andamento')}
+        </div>`).join('')
+
+  overlay.innerHTML = `
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,0.3);max-width:480px;width:100%;max-height:75vh;display:flex;flex-direction:column" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;gap:0.5rem;padding:0.9rem 1rem;border-bottom:1px solid var(--border)">
+        <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.1rem">${tipo === 'evol' ? 'trending_up' : 'groups'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.9rem;font-weight:700;color:var(--text-primary)">${escHtml(titulo)}</div>
+          <div style="font-size:0.7rem;color:var(--text-secondary)">${lista.length} aluno${lista.length !== 1 ? 's' : ''}${tipo === 'evol' ? ' · do que mais caiu para o que mais subiu' : ''}</div>
+        </div>
+        <button onclick="document.getElementById('dashListaAlunos').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);display:flex;padding:0.25rem"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div style="padding:0.5rem 1rem 1rem;overflow-y:auto">${linhas || '<p style="font-size:0.8rem;color:var(--text-secondary);padding:0.5rem 0">Sem alunos.</p>'}</div>
+    </div>`
+}
+window.mostrarAlunosDash = mostrarAlunosDash
+
+async function loadDashboard() {
+  const grid = document.getElementById('dashboardGrid')
+  if (!grid) return
+  grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><p>Carregando...</p></div>'
+
+  const [
+    { count: cUsers },
+    { data: porUsuarioTrilha },
+    { data: videosAll },
+    { data: avaliacoesDb },
+    { data: notasAvaliacao },
+    { data: usersAll },
+    { data: questoesVidRows },
+    { data: videosVistosRows }
+  ] = await Promise.all([
+    supabase.from('users').select('*', { count: 'exact', head: true }),
+    fetchAll(() => supabase.from('v_desempenho_usuario_trilha').select('*').gt('total_respondidas', 0)),
+    supabase.from('videos').select('id, title').order('ordem', { ascending: true }),
+    supabase.from('avaliacoes').select('id, titulo').eq('visivel', true).order('ordem', { ascending: true }),
+    fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')),
+    fetchAll(() => supabase.from('users').select('id, sector')),
+    supabase.from('questoes_sala_de_aula').select('video_id'),
+    fetchAll(() => supabase.from('v_videos_concluidos').select('user_id'))
+  ])
+
+  // ── Mapas base ──
+  const userMap = {}
+  for (const row of (porUsuarioTrilha || [])) {
+    if (!userMap[row.user_id]) userMap[row.user_id] = { name: row.name || row.email || '—', sector: (row.sector || '').trim() || 'Não informado', trilhas: {} }
+    userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas) }
+  }
+  const avNotaMap = {}
+  for (const r of (notasAvaliacao || [])) {
+    if (!avNotaMap[r.user_id]) avNotaMap[r.user_id] = {}
+    avNotaMap[r.user_id][String(r.avaliacao_id)] = Number(r.nota_pct)
+  }
+
+  // ── Métricas dos cards ──
+  const fezAlgo = new Set([
+    ...Object.keys(userMap),
+    ...Object.keys(avNotaMap),
+    ...(videosVistosRows || []).map(r => String(r.user_id))
+  ])
+  const comecaram = (usersAll || []).filter(u => fezAlgo.has(String(u.id))).length
+  const adesaoPct = cUsers ? Math.round((comecaram / cUsers) * 100) : 0
+
+  const notasFechadas = (porUsuarioTrilha || []).map(r => r.nota_pct).filter(n => n !== null && n !== undefined).map(Number)
+  const mediaGeral = notasFechadas.length ? Math.round(notasFechadas.reduce((s, n) => s + n, 0) / notasFechadas.length) : null
+
+  const videosComQuiz = [...new Set((questoesVidRows || []).map(q => q.video_id).filter(v => v !== null && v !== undefined).map(String))]
+  const concluiuQuizzes = u => videosComQuiz.length > 0 && videosComQuiz.every(vid => {
+    const d = u.trilhas[vid]
+    return d && d.nota !== null && d.nota !== undefined
+  })
+  const totalConcluiram = Object.values(userMap).filter(concluiuQuizzes).length
+
+  const avIdsVis = (avaliacoesDb || []).map(a => String(a.id))
+  const aptosCert = (videosComQuiz.length > 0 || avIdsVis.length > 0)
+    ? (usersAll || []).filter(u =>
+        videosComQuiz.every(vid => { const d = userMap[u.id]?.trilhas?.[vid]; return d && d.nota !== null && d.nota !== undefined }) &&
+        avIdsVis.every(a => avNotaMap[u.id]?.[a] !== undefined)
+      ).length
+    : 0
+
+  // ── Evolução pré-teste → pós-teste (pareada: só quem fez os dois) ──
+  const preAvIds = (avaliacoesDb || []).filter(a => /pr[eé][\s\-]*teste/i.test(a.titulo || '')).map(a => String(a.id))
+  const evolPorSetor = {}
+  let evolGeral = null
+  _evolAlunosDash = {}
+  if (preAvIds.length) {
+    const pares = []
+    for (const [uid, u] of Object.entries(userMap)) {
+      const pre = preAvIds.map(id => avNotaMap[uid]?.[id]).filter(n => n !== undefined)
+      if (!pre.length) continue
+      const pos = Object.values(u.trilhas).map(d => d.nota).filter(n => n !== null && n !== undefined).map(Number)
+      if (!pos.length) continue
+      pares.push({ nome: u.name, setor: u.sector, pre: pre.reduce((s, n) => s + n, 0) / pre.length, pos: pos.reduce((s, n) => s + n, 0) / pos.length })
+    }
+    _evolAlunosDash.__geral = pares
+    for (const p of pares) {
+      if (!evolPorSetor[p.setor]) evolPorSetor[p.setor] = { n: 0, pre: 0, pos: 0 }
+      const e = evolPorSetor[p.setor]; e.n++; e.pre += p.pre; e.pos += p.pos
+      if (!_evolAlunosDash[p.setor]) _evolAlunosDash[p.setor] = []
+      _evolAlunosDash[p.setor].push(p)
+    }
+    if (pares.length) {
+      evolGeral = {
+        n: pares.length,
+        pre: Math.round(pares.reduce((s, p) => s + p.pre, 0) / pares.length),
+        pos: Math.round(pares.reduce((s, p) => s + p.pos, 0) / pares.length)
+      }
+    }
+  }
+
+  // ── Engajamento por setor ──
+  const engSetor = {}
+  _engAlunosDash = {}
+  for (const u of Object.values(userMap)) {
+    if (!engSetor[u.sector]) engSetor[u.sector] = { part: 0, concl: 0 }
+    engSetor[u.sector].part++
+    const concluiu = concluiuQuizzes(u)
+    if (concluiu) engSetor[u.sector].concl++
+    if (!_engAlunosDash[u.sector]) _engAlunosDash[u.sector] = []
+    _engAlunosDash[u.sector].push({ nome: u.name, concluiu })
+  }
+
+  // ── Média por vídeo (só vídeos que têm perguntas de quiz) ──
+  const mediaVideo = (videosAll || []).filter(v => videosComQuiz.includes(String(v.id))).map(v => {
+    const notas = (porUsuarioTrilha || [])
+      .filter(r => String(r.video_id) === String(v.id) && r.nota_pct !== null && r.nota_pct !== undefined)
+      .map(r => Number(r.nota_pct))
+    return { titulo: v.title, media: notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null, n: notas.length }
+  })
+
+  // ── Renderização ──
+  const mCard = (icon, value, label, color, bg, tip = '') => `
+    <div class="report-card" ${tip ? `data-tip="${escHtml(tip)}"` : ''}>
+      <div class="report-card-icon" style="background:${bg};color:${color}"><span class="material-symbols-outlined">${icon}</span></div>
+      <span class="report-value" style="color:${color}">${value}</span>
+      <span class="report-label">${label}</span>
+    </div>`
+
+  const painel = (icon, titulo, conteudo, wide = false) => `
+    <div style="${wide ? 'grid-column:1/-1;' : ''}background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:0.5rem;padding:0.8rem 1rem;background:var(--surface);border-bottom:1px solid var(--border)">
+        <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.1rem">${icon}</span>
+        <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary)">${titulo}</span>
+      </div>
+      <div>${conteudo}</div>
+    </div>`
+
+  // Cores dos gráficos: 1 tom em 2 intensidades (validadas p/ daltonismo, ΔE 40)
+  const TEAL_ESCURO = '#0f766e', TEAL_CLARO = '#2dd4bf'
+
+  // Gráfico pré → pós: dumbbell (ponto claro = pré, ponto escuro = pós)
+  const evolRow = (label, pre, pos, n, destaque = false, setorKey = '') => {
+    const delta = pos - pre
+    const lo = Math.min(pre, pos), hi = Math.max(pre, pos)
+    const badge = `<span style="padding:0.1rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:700;background:${delta >= 0 ? '#e8f5e9' : '#ffebee'};color:${delta >= 0 ? '#2e7d32' : '#c62828'}">${delta >= 0 ? '▲ +' : '▼ −'}${Math.abs(delta)} pp</span>`
+    const tip = `${label}\nPré-teste: ${pre}%  →  Pós (quizzes): ${pos}%\nEvolução: ${delta >= 0 ? '+' : '−'}${Math.abs(delta)} pontos percentuais\n${n} aluno${n !== 1 ? 's' : ''} fizeram os dois\n👆 Clique para ver quem são os alunos`
+    return `
+      <div data-tip="${escHtml(tip)}" data-evol-setor="${escHtml(setorKey)}" style="padding:0.7rem 1rem;border-bottom:1px solid var(--border)${destaque ? ';background:var(--surface)' : ''}">
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;flex-wrap:wrap">
+          <span style="font-size:0.82rem;font-weight:${destaque ? 700 : 600};color:var(--text-primary)">${escHtml(label)}</span>
+          ${badge}
+          <span style="font-size:0.7rem;color:var(--text-secondary)">${n} aluno${n !== 1 ? 's' : ''}</span>
+        </div>
+        <div style="position:relative;height:20px;margin:0 4.2rem">
+          <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--border);transform:translateY(-50%)"></div>
+          <div style="position:absolute;top:50%;left:${lo}%;width:${Math.max(hi - lo, 0.5)}%;height:2px;background:${TEAL_ESCURO};transform:translateY(-50%);opacity:0.5"></div>
+          <span style="position:absolute;top:50%;left:${pre}%;width:11px;height:11px;border-radius:50%;background:${TEAL_CLARO};box-shadow:0 0 0 2px var(--card-bg);transform:translate(-50%,-50%)"></span>
+          <span style="position:absolute;top:50%;left:${pos}%;width:12px;height:12px;border-radius:50%;background:${TEAL_ESCURO};box-shadow:0 0 0 2px var(--card-bg);transform:translate(-50%,-50%)"></span>
+          <span style="position:absolute;top:50%;right:calc(100% + 0.55rem);transform:translateY(-50%);font-size:0.72rem;font-weight:600;color:var(--text-secondary);white-space:nowrap">Pré ${pre}%</span>
+          <span style="position:absolute;top:50%;left:calc(100% + 0.55rem);transform:translateY(-50%);font-size:0.78rem;font-weight:700;color:var(--text-primary);white-space:nowrap">Pós ${pos}%</span>
+        </div>
+      </div>`
+  }
+
+  const evolLegenda = `
+    <div style="display:flex;gap:1.1rem;flex-wrap:wrap;align-items:center;padding:0.65rem 1rem 0.3rem;font-size:0.7rem;color:var(--text-secondary)">
+      <span style="display:inline-flex;align-items:center;gap:0.35rem"><span style="width:10px;height:10px;border-radius:50%;background:${TEAL_CLARO};display:inline-block"></span>Pré-teste</span>
+      <span style="display:inline-flex;align-items:center;gap:0.35rem"><span style="width:10px;height:10px;border-radius:50%;background:${TEAL_ESCURO};display:inline-block"></span>Pós — média dos quizzes</span>
+      <span style="margin-left:auto">escala 0–100%</span>
+    </div>`
+
+  const evolContent = !preAvIds.length
+    ? `<div style="padding:1.5rem;text-align:center;color:var(--text-secondary);font-size:0.82rem">Nenhuma avaliação com "pré-teste" no título foi encontrada.</div>`
+    : !evolGeral
+      ? `<div style="padding:1.5rem;text-align:center;color:var(--text-secondary);font-size:0.82rem">Ninguém fez o pré-teste e fechou quizzes ainda — sem dados para comparar.</div>`
+      : evolLegenda +
+        evolRow('Geral — todos os setores', evolGeral.pre, evolGeral.pos, evolGeral.n, true, '__geral') +
+        Object.entries(evolPorSetor).sort((a, b) => b[1].n - a[1].n)
+          .map(([s, e]) => evolRow(s, Math.round(e.pre / e.n), Math.round(e.pos / e.n), e.n, false, s)).join('') +
+        `<div style="padding:0.5rem 1rem;font-size:0.65rem;color:var(--text-secondary)">Comparação pareada: só quem fez o pré-teste e fechou ao menos um quiz. "pp" = pontos percentuais.</div>`
+
+  // Gráfico de engajamento por setor: barra empilhada (concluíram + em andamento)
+  const engEntries = Object.entries(engSetor).sort((a, b) => b[1].part - a[1].part)
+  const maxPart = Math.max(1, ...engEntries.map(([, e]) => e.part))
+  const engLegenda = `
+    <div style="display:flex;gap:1.1rem;flex-wrap:wrap;align-items:center;padding:0.65rem 1rem 0.3rem;font-size:0.7rem;color:var(--text-secondary)">
+      <span style="display:inline-flex;align-items:center;gap:0.35rem"><span style="width:10px;height:10px;border-radius:3px;background:${TEAL_ESCURO};display:inline-block"></span>Concluíram todos os quizzes</span>
+      <span style="display:inline-flex;align-items:center;gap:0.35rem"><span style="width:10px;height:10px;border-radius:3px;background:${TEAL_CLARO};display:inline-block"></span>Em andamento</span>
+    </div>`
+  const engContent = engEntries.length
+    ? engLegenda + engEntries.map(([s, e]) => {
+        const em = e.part - e.concl
+        const wC = (e.concl / maxPart) * 100
+        const wE = (em / maxPart) * 100
+        const tip = `${s}\n${e.part} participante${e.part !== 1 ? 's' : ''}\n${e.concl} concluíram todos os quizzes\n${em} em andamento\n👆 Clique para ver quem são os alunos`
+        return `
+        <div data-tip="${escHtml(tip)}" data-eng-setor="${escHtml(s)}" style="padding:0.55rem 1rem;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;margin-bottom:0.3rem;flex-wrap:wrap">
+            <span style="font-size:0.8rem;font-weight:600;color:var(--text-primary)">${escHtml(s)}</span>
+            <span style="font-size:0.7rem;color:var(--text-secondary)"><strong style="color:var(--text-primary)">${e.concl}</strong> de <strong style="color:var(--text-primary)">${e.part}</strong> concluíram</span>
+          </div>
+          <div style="display:flex;gap:2px;height:14px">
+            ${e.concl ? `<span style="width:${wC}%;background:${TEAL_ESCURO};border-radius:${em ? '0' : '0 4px 4px 0'}"></span>` : ''}
+            ${em ? `<span style="width:${wE}%;background:${TEAL_CLARO};border-radius:0 4px 4px 0"></span>` : ''}
+          </div>
+        </div>`
+      }).join('')
+    : `<div style="padding:1.5rem;text-align:center;color:var(--text-secondary);font-size:0.82rem">Sem participação ainda.</div>`
+
+  // Gráfico de média por vídeo: medidor com cor de severidade + trilho no mesmo tom
+  const SEVERIDADE = [
+    { min: 70, fill: '#16a34a', track: 'rgba(22,163,74,0.16)' },
+    { min: 50, fill: '#d97706', track: 'rgba(217,119,6,0.16)' },
+    { min: 0,  fill: '#dc2626', track: 'rgba(220,38,38,0.16)' }
+  ]
+  const vidContent = mediaVideo.length
+    ? mediaVideo.map(v => {
+        const sev = v.media !== null ? SEVERIDADE.find(x => v.media >= x.min) : null
+        const tip = v.media !== null
+          ? `${v.titulo}\nMédia: ${v.media}% (${v.n} nota${v.n !== 1 ? 's' : ''} fechada${v.n !== 1 ? 's' : ''})`
+          : `${v.titulo}\nNinguém fechou o quiz deste vídeo ainda`
+        return `
+        <div data-tip="${escHtml(tip)}" style="padding:0.6rem 1rem;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;margin-bottom:0.3rem">
+            <span style="font-size:0.78rem;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(v.titulo)}</span>
+            <span style="font-size:0.7rem;color:var(--text-secondary);white-space:nowrap">${v.n} nota${v.n !== 1 ? 's' : ''}</span>
+          </div>
+          ${v.media !== null ? `
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div style="flex:1;height:14px;border-radius:0 4px 4px 0;background:${sev.track};overflow:hidden">
+              <div style="height:100%;width:${v.media}%;background:${sev.fill};border-radius:0 4px 4px 0"></div>
+            </div>
+            <span style="font-size:0.78rem;font-weight:700;min-width:2.6rem;text-align:right;color:var(--text-primary)">${v.media}%</span>
+          </div>` : `<span style="font-size:0.72rem;color:var(--text-secondary)">Ninguém fechou o quiz deste vídeo ainda</span>`}
+        </div>`
+      }).join('') +
+      `<div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;padding:0.5rem 1rem;font-size:0.65rem;color:var(--text-secondary)">
+        <span style="display:inline-flex;align-items:center;gap:0.3rem"><span style="width:10px;height:10px;border-radius:3px;background:#16a34a;display:inline-block"></span>≥ 70%</span>
+        <span style="display:inline-flex;align-items:center;gap:0.3rem"><span style="width:10px;height:10px;border-radius:3px;background:#d97706;display:inline-block"></span>50–69%</span>
+        <span style="display:inline-flex;align-items:center;gap:0.3rem"><span style="width:10px;height:10px;border-radius:3px;background:#dc2626;display:inline-block"></span>&lt; 50%</span>
+      </div>`
+    : `<div style="padding:1.5rem;text-align:center;color:var(--text-secondary);font-size:0.82rem">Nenhum vídeo com quiz cadastrado.</div>`
+
+  grid.innerHTML = `
+    <div style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.75rem">
+      ${mCard('how_to_reg', adesaoPct + '%', `Adesão — ${comecaram} de ${cUsers || 0}`, 'var(--primary)', 'var(--primary-soft)', `${comecaram} de ${cUsers || 0} alunos já fizeram alguma coisa:\nresponderam quiz, fizeram avaliação ou concluíram vídeo`)}
+      ${mCard('percent', mediaGeral !== null ? mediaGeral + '%' : '—', 'Média geral dos quizzes', 'var(--secondary)', 'var(--secondary-soft)', 'Média de todas as notas fechadas de quiz\n(quiz fechado = respondeu todas as perguntas do vídeo)')}
+      ${mCard('done_all', totalConcluiram, 'Responderam todos os quizzes', '#2e7d32', '#e8f5e9', `Fecharam o quiz de todos os ${videosComQuiz.length} vídeos com perguntas`)}
+      ${mCard('workspace_premium', aptosCert, 'Aptos a certificado', '#7e3000', 'rgba(126,48,0,0.08)', 'Concluíram todos os quizzes e todas as avaliações visíveis')}
+    </div>
+    ${painel('trending_up', 'Evolução Pré-teste → Pós-teste por Setor', evolContent, true)}
+    ${painel('groups', 'Engajamento por Setor', engContent)}
+    ${painel('play_circle', 'Média por Vídeo — só vídeos com quiz', vidContent)}
+  `
+
+  // ── Tooltip: passa o mouse e mostra os detalhes ──
+  let tipEl = document.getElementById('dashTip')
+  if (!tipEl) {
+    tipEl = document.createElement('div')
+    tipEl.id = 'dashTip'
+    tipEl.style.cssText = 'position:fixed;z-index:9999;display:none;pointer-events:none;background:var(--card-bg);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.7rem;font-size:0.75rem;line-height:1.55;box-shadow:0 4px 14px rgba(0,0,0,0.22);white-space:pre-line;max-width:280px'
+    document.body.appendChild(tipEl)
+  }
+  grid.querySelectorAll('[data-tip]').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      tipEl.textContent = el.dataset.tip
+      tipEl.style.display = 'block'
+      const pad = 14
+      const r = tipEl.getBoundingClientRect()
+      let x = e.clientX + pad, y = e.clientY + pad
+      if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - pad
+      if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - pad
+      tipEl.style.left = x + 'px'
+      tipEl.style.top = y + 'px'
+    })
+    el.addEventListener('mouseleave', () => { tipEl.style.display = 'none' })
+  })
+
+  // Clique nas linhas dos gráficos abre a lista de alunos do setor
+  grid.querySelectorAll('[data-evol-setor]').forEach(el => {
+    el.style.cursor = 'pointer'
+    el.addEventListener('click', () => { tipEl.style.display = 'none'; mostrarAlunosDash('evol', el.dataset.evolSetor) })
+  })
+  grid.querySelectorAll('[data-eng-setor]').forEach(el => {
+    el.style.cursor = 'pointer'
+    el.addEventListener('click', () => { tipEl.style.display = 'none'; mostrarAlunosDash('eng', el.dataset.engSetor) })
+  })
+}
+window.loadDashboard = loadDashboard
+
+// ============================================
 // ADMIN — RELATÓRIOS
 // ============================================
 let _rptSetores = []
@@ -3489,7 +3867,7 @@ async function loadReports() {
     supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
     fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')),
     supabase.from('questoes_avaliacao').select('avaliacao_id'),
-    fetchAll(() => supabase.from('progresso_usuario').select('user_id, item_id').eq('item_tipo', 'video').eq('concluido', true)),
+    fetchAll(() => supabase.from('v_videos_concluidos').select('user_id, item_id')),
     fetchAll(() => supabase.from('users').select('id, name, email, sector, role').order('name', { ascending: true })),
     supabase.from('questoes_sala_de_aula').select('video_id')
   ])
@@ -4228,7 +4606,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       supabase.from('users').select('id, name, sector, role'),
       supabase.from('questoes_avaliacao').select('avaliacao_id'),
       supabase.from('questoes_sala_de_aula').select('video_id'),
-      fetchAll(() => supabase.from('progresso_usuario').select('user_id').eq('item_tipo', 'video').eq('concluido', true))
+      fetchAll(() => supabase.from('v_videos_concluidos').select('user_id'))
     ])
 
     // Perguntas = questões dos quizzes + questões das avaliações
@@ -4837,6 +5215,28 @@ async function syncLocalProgress(userId) {
     .eq('user_id', userId)
     .eq('concluido', true)
   if (progressData) {
+    // Repara marcações antigas que ficaram só no navegador: sobe pro banco
+    // antes de reconstruir (senão a limpeza abaixo as apagaria de vez)
+    const noBanco = new Set(progressData.map(p => `${p.item_tipo}_${p.item_id}`))
+    const reparos = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key || localStorage.getItem(key) !== 'completed') continue
+      let tipo = null, itemId = null
+      if (key.startsWith(`eduflow-prog-${userId}-`))        { tipo = 'video';  itemId = key.slice(`eduflow-prog-${userId}-`.length) }
+      else if (key.startsWith(`eduflow-artigo-${userId}-`)) { tipo = 'artigo'; itemId = key.slice(`eduflow-artigo-${userId}-`.length) }
+      if (tipo && itemId && /^\d+$/.test(itemId) && !noBanco.has(`${tipo}_${itemId}`)) {
+        reparos.push({ user_id: userId, item_id: itemId, item_tipo: tipo, concluido: true })
+        noBanco.add(`${tipo}_${itemId}`)
+      }
+    }
+    if (reparos.length) {
+      const { error } = await supabase.from('progresso_usuario').upsert(reparos, { onConflict: 'user_id,item_id,item_tipo' })
+      if (error) console.error('[Progresso] Erro ao subir marcações locais pro banco:', error)
+      // Mantém as marcações locais mesmo se o envio falhar (tenta de novo no próximo login)
+      progressData.push(...reparos)
+    }
+
     const keysToRemove = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
