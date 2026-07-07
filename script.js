@@ -3456,6 +3456,8 @@ document.getElementById('formQuiz').addEventListener('submit', async e => {
 // ============================================
 // ADMIN — RELATÓRIOS
 // ============================================
+let _rptSetores = []
+
 async function loadReports() {
   const grid = document.getElementById('reportsGrid')
   grid.innerHTML = '<div class="list-empty" style="grid-column:1/-1"><p>Carregando...</p></div>'
@@ -3472,7 +3474,9 @@ async function loadReports() {
     { data: avaliacoesDb },
     { data: notasAvaliacao },
     { data: questoesAvRows },
-    { data: videosVistosRows }
+    { data: videosVistosRows },
+    { data: usersAll },
+    { data: questoesVidRows }
   ] = await Promise.all([
     supabase.from('trilhas').select('*', { count: 'exact', head: true }),
     supabase.from('videos').select('*', { count: 'exact', head: true }),
@@ -3485,7 +3489,9 @@ async function loadReports() {
     supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
     fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')),
     supabase.from('questoes_avaliacao').select('avaliacao_id'),
-    fetchAll(() => supabase.from('progresso_usuario').select('user_id, item_id').eq('item_tipo', 'video').eq('concluido', true))
+    fetchAll(() => supabase.from('progresso_usuario').select('user_id, item_id').eq('item_tipo', 'video').eq('concluido', true)),
+    fetchAll(() => supabase.from('users').select('id, name, email, sector, role').order('name', { ascending: true })),
+    supabase.from('questoes_sala_de_aula').select('video_id')
   ])
 
   // Perguntas = questões dos quizzes (sala de aula) + questões das avaliações
@@ -3515,7 +3521,7 @@ async function loadReports() {
   }
 
   let _accId = 0
-  const tabelaCard = (icon, titulo, conteudo) => {
+  const tabelaCard = (icon, titulo, conteudo, resumo = '') => {
     const id = `acc-rpt-${_accId++}`
     return `
     <div style="grid-column:1/-1;background:var(--card-bg);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow-sm)">
@@ -3523,6 +3529,7 @@ async function loadReports() {
         style="width:100%;display:flex;align-items:center;gap:0.5rem;padding:0.875rem 1rem;background:var(--surface);border:none;cursor:pointer;text-align:left;border-radius:var(--radius)">
         <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.1rem;flex-shrink:0">${icon}</span>
         <span style="font-size:0.82rem;font-weight:600;color:var(--text-primary);flex:1;line-height:1.3">${titulo}</span>
+        ${resumo ? `<span style="font-size:0.7rem;color:var(--text-secondary);white-space:nowrap;flex-shrink:0">${resumo}</span>` : ''}
         <span class="material-symbols-outlined rpt-chevron" style="color:var(--text-secondary);font-size:1.1rem;flex-shrink:0">expand_more</span>
       </button>
       <div id="${id}" style="display:none">
@@ -3583,7 +3590,7 @@ async function loadReports() {
     const notas = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n !== null && n !== undefined)
     const media = notas.length ? Math.round(notas.reduce((s, n) => s + Number(n), 0) / notas.length) : null
 
-    return `<tr style="transition:background 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+    return `<tr data-aluno="${escHtml((u.name || u.email || '').toLowerCase())}" data-setor="${escHtml((u.sector || '').trim())}" style="transition:background 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <td style="${tdS};width:2rem;text-align:center">${rank}</td>
       <td style="${tdS}">
         <span style="font-weight:500">${escHtml(u.name || u.email || '—')}</span>
@@ -3620,7 +3627,7 @@ async function loadReports() {
     }).join('')
     const notas = trilhaList.map(t => d.trilhas[t.id]).filter(n => n !== null && n !== undefined)
     const media = notas.length ? Math.round(notas.reduce((s, n) => s + Number(n), 0) / notas.length) : null
-    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+    return `<tr data-setor-grp="${escHtml((setor || '').trim())}" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <td style="${tdS}"><span style="font-weight:500">${escHtml(setor || '—')}</span></td>
       ${cols}
       <td style="${tdC};font-weight:700">${notaBadge(media)}</td>
@@ -3667,7 +3674,7 @@ async function loadReports() {
     }).join('')
     const notas = avList.map(a => avNotaMap[uid]?.[String(a.id)]).filter(n => n !== undefined)
     const media = notas.length ? Math.round(notas.reduce((s, n) => s + n, 0) / notas.length) : null
-    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+    return `<tr data-aluno="${escHtml((u.name || '').toLowerCase())}" data-setor="${escHtml((u.sector || '').trim())}" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <td style="${tdS}"><span style="font-weight:500">${escHtml(u.name || uid)}</span><div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')}</div></td>
       ${cols}
       <td style="${tdC};font-weight:700">${notaBadge(media)}</td>
@@ -3703,7 +3710,7 @@ async function loadReports() {
     const pcts = trilhaList.map(t => u.trilhas[t.id]).filter(d => d && d.respondidas).map(quizPct)
     const media = pcts.length ? Math.round(pcts.reduce((s, n) => s + n, 0) / pcts.length) : null
 
-    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+    return `<tr data-aluno="${escHtml((u.name || u.email || '').toLowerCase())}" data-setor="${escHtml((u.sector || '').trim())}" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <td style="${tdS}">
         <span style="font-weight:500">${escHtml(u.name || u.email || '—')}</span>
         <div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')} ${u.role ? '· ' + escHtml(u.role) : ''}</div>
@@ -3768,7 +3775,7 @@ async function loadReports() {
       <strong>${vistos.length} de ${videosAll.length}</strong>
       ${vistos.length ? `<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem;max-width:240px;white-space:normal">${vistos.map(v => escHtml(v.title.substring(0, 40))).join('<br>')}</div>` : ''}`
 
-    return `<tr onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+    return `<tr data-aluno="${escHtml((u.name || u.email || '').toLowerCase())}" data-setor="${escHtml((u.sector || '').trim())}" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
       <td style="${tdS}">
         <span style="font-weight:500">${escHtml(u.name || u.email || '—')}</span>
         <div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.sector || '')} ${u.role ? '· ' + escHtml(u.role) : ''}</div>
@@ -3815,38 +3822,134 @@ async function loadReports() {
       <tbody>${respondeuRows}</tbody>
     </table>` : semDados(6)
 
+  // ── MÉTRICAS DE RESULTADO + PENDENTES ──
+  // Quem já fez alguma coisa: respondeu quiz, fez avaliação ou concluiu vídeo
+  const fezAlgo = new Set([
+    ...Object.keys(userMap),
+    ...Object.keys(avNotaMap),
+    ...Object.keys(vistosMap)
+  ])
+  const pendentes = (usersAll || []).filter(u => !fezAlgo.has(String(u.id)))
+  const comecaram = (cUsers || 0) - pendentes.length
+  const adesaoPct = cUsers ? Math.round((comecaram / cUsers) * 100) : 0
+
+  // Média geral: todas as notas fechadas de quiz (NULL = não terminou, fica fora)
+  const notasFechadas = (porUsuarioTrilha || [])
+    .map(r => r.nota_pct)
+    .filter(n => n !== null && n !== undefined)
+    .map(Number)
+  const mediaGeral = notasFechadas.length
+    ? Math.round(notasFechadas.reduce((s, n) => s + n, 0) / notasFechadas.length) : null
+
+  // Aptos a certificado: todos os quizzes com nota fechada + todas as avaliações visíveis
+  const videosComQuiz = [...new Set((questoesVidRows || []).map(q => q.video_id).filter(v => v !== null && v !== undefined).map(String))]
+  const quizOkMap = {}
+  for (const r of (porUsuarioTrilha || [])) {
+    if (r.nota_pct === null || r.nota_pct === undefined) continue
+    if (!quizOkMap[r.user_id]) quizOkMap[r.user_id] = new Set()
+    quizOkMap[r.user_id].add(String(r.video_id))
+  }
+  const avIdsVis = (avaliacoesDb || []).map(a => String(a.id))
+  const temCriterioCert = videosComQuiz.length > 0 || avIdsVis.length > 0
+  const aptosCert = !temCriterioCert ? 0 : (usersAll || []).filter(u =>
+    videosComQuiz.every(vid => quizOkMap[u.id]?.has(vid)) &&
+    avIdsVis.every(a => avNotaMap[u.id]?.[a] !== undefined)
+  ).length
+
+  // Setores para o filtro (tela e PDF)
+  const setoresList = [...new Set((usersAll || []).map(u => (u.sector || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  _rptSetores = setoresList
+
+  // Só perguntas com amostra mínima (1 resposta errada = "100% de erro" engana)
+  const duvidasValidas = (principais_duvidas || []).filter(d => Number(d.total_respostas) >= 5)
+
+  // ── TABELA DE PENDENTES POR SETOR ──
+  const pendPorSetor = {}
+  for (const u of pendentes) {
+    const s = (u.sector || '').trim() || 'Não informado'
+    if (!pendPorSetor[s]) pendPorSetor[s] = []
+    pendPorSetor[s].push(u)
+  }
+  const thGrpPend = 'padding:0.6rem 0.75rem;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--primary);background:var(--primary-soft);border-bottom:1px solid var(--border)'
+  const pendRows = Object.entries(pendPorSetor).sort((a, b) => a[0].localeCompare(b[0])).map(([setor, us]) => {
+    const header = `<tr data-setor-grp="${escHtml(setor)}"><td colspan="2" style="${thGrpPend}">${escHtml(setor)} — ${us.length} pendente${us.length !== 1 ? 's' : ''}</td></tr>`
+    const rows = us.map(u => `
+      <tr data-aluno="${escHtml((u.name || u.email || '').toLowerCase())}" data-setor="${escHtml((u.sector || '').trim())}" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+        <td style="${tdS}"><span style="font-weight:500">${escHtml(u.name || '—')}</span>${u.role ? `<div style="font-size:0.7rem;color:var(--text-secondary)">${escHtml(u.role)}</div>` : ''}</td>
+        <td style="${tdS}">${escHtml(u.email || '—')}</td>
+      </tr>`).join('')
+    return header + rows
+  }).join('')
+
+  const pendSummary = `
+    <div style="display:flex;gap:1.25rem;flex-wrap:wrap;align-items:center;padding:0.75rem 1rem;background:var(--surface);border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.82rem">
+        <span class="material-symbols-outlined" style="font-size:1rem;color:#c62828">person_off</span>
+        <strong>${pendentes.length}</strong>&nbsp;de ${cUsers || 0} alunos ainda não começaram
+      </div>
+      <div style="margin-left:auto">
+        <button onclick="printPendentesTable()" style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.35rem 0.8rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text-primary);font-size:0.78rem;font-weight:500;cursor:pointer">
+          <span class="material-symbols-outlined" style="font-size:0.95rem">print</span> Imprimir
+        </button>
+      </div>
+    </div>`
+
+  const pendTable = pendentes.length ? `
+    ${pendSummary}
+    <table id="pendentesTable" class="resp-table" style="width:100%;border-collapse:collapse"
+      data-pendentes="${pendentes.length}" data-total-alunos="${cUsers || 0}">
+      <thead style="background:var(--surface)"><tr>
+        <th style="${thS}">Aluno</th>
+        <th style="${thS}">E-mail</th>
+      </tr></thead>
+      <tbody>${pendRows}</tbody>
+    </table>` : `<div style="padding:2rem;text-align:center;color:var(--text-secondary);font-size:0.875rem">🎉 Todos os alunos já começaram!</div>`
+
   grid.innerHTML = `
-    <div class="report-card">
-      <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">conversion_path</span></div>
-      <span class="report-value" style="color:var(--primary)">${cTrilhas || 0}</span>
-      <span class="report-label">Trilha${(cTrilhas || 0) !== 1 ? 's' : ''}</span>
+    <div style="grid-column:1/-1;display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center">
+      <div style="flex:1;min-width:220px;position:relative">
+        <span class="material-symbols-outlined" style="position:absolute;left:0.65rem;top:50%;transform:translateY(-50%);font-size:1.05rem;color:var(--text-secondary)">search</span>
+        <input id="rptBusca" type="text" placeholder="Buscar aluno por nome..." oninput="filtrarRelatorios()"
+          style="width:100%;padding:0.55rem 0.75rem 0.55rem 2.3rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--card-bg);color:var(--text-primary);font-size:0.85rem">
+      </div>
+      <select id="rptSetor" onchange="filtrarRelatorios()"
+        style="padding:0.55rem 0.75rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--card-bg);color:var(--text-primary);font-size:0.85rem;min-width:180px">
+        <option value="">Todos os setores</option>
+        ${setoresList.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('')}
+      </select>
     </div>
     <div class="report-card">
-      <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">play_circle</span></div>
-      <span class="report-value" style="color:var(--primary)">${cVideos || 0}</span>
-      <span class="report-label">Vídeos</span>
+      <div class="report-card-icon" style="background:var(--primary-soft);color:var(--primary)"><span class="material-symbols-outlined">how_to_reg</span></div>
+      <span class="report-value" style="color:var(--primary)">${adesaoPct}%</span>
+      <span class="report-label">Adesão — ${comecaram} de ${cUsers || 0} começaram</span>
     </div>
     <div class="report-card">
-      <div class="report-card-icon" style="background:var(--secondary-soft);color:var(--secondary)"><span class="material-symbols-outlined">quiz</span></div>
-      <span class="report-value" style="color:var(--secondary)">${cQuestoesTotal}</span>
-      <span class="report-label">Perguntas</span>
+      <div class="report-card-icon" style="background:var(--secondary-soft);color:var(--secondary)"><span class="material-symbols-outlined">percent</span></div>
+      <span class="report-value" style="color:var(--secondary)">${mediaGeral !== null ? mediaGeral + '%' : '—'}</span>
+      <span class="report-label">Média geral dos quizzes</span>
     </div>
     <div class="report-card">
-      <div class="report-card-icon" style="background:rgba(126,48,0,0.08);color:#7e3000"><span class="material-symbols-outlined">group</span></div>
-      <span class="report-value" style="color:#7e3000">${cUsers || 0}</span>
-      <span class="report-label">Alunos</span>
+      <div class="report-card-icon" style="background:#e8f5e9;color:#2e7d32"><span class="material-symbols-outlined">done_all</span></div>
+      <span class="report-value" style="color:#2e7d32">${respondeuTudo.length}</span>
+      <span class="report-label">Responderam todos os quizzes</span>
     </div>
-    ${tabelaCard('how_to_reg', 'Quem Respondeu os Quizzes', respondeuTable)}
-    ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable)}
-    ${tabelaCard('quiz', 'Notas dos Quizzes por Aluno — respondidos após os vídeos', quizTable)}
-    ${tabelaCard('assignment', 'Notas das Avaliações por Aluno', avTable)}
-    ${tabelaCard('leaderboard', 'Ranking Individual — desempenho por trilha', rankTable)}
+    <div class="report-card">
+      <div class="report-card-icon" style="background:rgba(126,48,0,0.08);color:#7e3000"><span class="material-symbols-outlined">workspace_premium</span></div>
+      <span class="report-value" style="color:#7e3000">${aptosCert}</span>
+      <span class="report-label">Aptos a certificado</span>
+    </div>
+    ${tabelaCard('how_to_reg', 'Quem Respondeu os Quizzes', respondeuTable, `${respondeuAlgo.length} responderam · ${respondeuTudo.length} completaram`)}
+    ${tabelaCard('person_off', 'Quem Ainda Não Começou — pendentes por setor', pendTable, `${pendentes.length} pendente${pendentes.length !== 1 ? 's' : ''}`)}
+    ${tabelaCard('domain', 'Desempenho por Setor — todas as trilhas', setorTable, `${Object.keys(setorMap).length} setor${Object.keys(setorMap).length !== 1 ? 'es' : ''}`)}
+    ${tabelaCard('quiz', 'Notas dos Quizzes por Aluno — respondidos após os vídeos', quizTable, `${usersArr.length} aluno${usersArr.length !== 1 ? 's' : ''}`)}
+    ${tabelaCard('assignment', 'Notas das Avaliações por Aluno', avTable, `${Object.keys(avNotaMap).length} aluno${Object.keys(avNotaMap).length !== 1 ? 's' : ''}`)}
+    ${tabelaCard('leaderboard', 'Ranking Individual — desempenho por trilha', rankTable, `${usersArr.length} aluno${usersArr.length !== 1 ? 's' : ''}`)}
     ${tabelaCard('psychology', 'Principais Dúvidas — perguntas com maior taxa de erro', (() => {
-      if (!principais_duvidas?.length) return semDados(4)
+      if (!duvidasValidas.length) return `<div style="padding:2rem;text-align:center;color:var(--text-secondary);font-size:0.875rem">Nenhuma pergunta com pelo menos 5 respostas ainda.</div>`
 
       // Agrupa por trilha mantendo ordem por pct_erro desc
       const grupos = {}
-      for (const d of principais_duvidas) {
+      for (const d of duvidasValidas) {
         const key = d.trilha || '—'
         if (!grupos[key]) grupos[key] = []
         grupos[key].push(d)
@@ -3870,7 +3973,8 @@ async function loadReports() {
         return header + qRows
       }).join('')
 
-      return `<table class="resp-table" style="width:100%;border-collapse:collapse">
+      return `<div style="padding:0.6rem 0.75rem 0;font-size:0.7rem;color:var(--text-secondary)">Somente perguntas com pelo menos 5 respostas entram nesta lista.</div>
+      <table class="resp-table" style="width:100%;border-collapse:collapse">
         <thead style="background:var(--surface)"><tr>
           <th style="${thS}">Pergunta</th>
           <th style="${thC}">Respostas</th>
@@ -3879,7 +3983,7 @@ async function loadReports() {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>`
-    })())}
+    })(), `${duvidasValidas.length} pergunta${duvidasValidas.length !== 1 ? 's' : ''}`)}
   `
 }
 
@@ -3887,6 +3991,9 @@ async function loadReports() {
 function printRespondeuTable() {
   const table = document.getElementById('respondeuTable')
   if (!table) { alert('Abra a seção "Quem Respondeu os Quizzes" antes de imprimir.'); return }
+
+  // Remove o estilo de impressão da outra tabela, se existir (evita conflito)
+  document.getElementById('_printPendentesStyle')?.remove()
 
   const totalAlunos   = table.dataset.totalAlunos   || ''
   const respondeuAlgo = table.dataset.respondeuAlgo || ''
@@ -3956,6 +4063,88 @@ EduJuju — Hospital Infantil Dr. Juvêncio Mattos</p>
   }, { once: true })
 }
 
+// Filtro de busca/setor dos relatórios
+function filtrarRelatorios() {
+  const termo = (document.getElementById('rptBusca')?.value || '').trim().toLowerCase()
+  const setor = document.getElementById('rptSetor')?.value || ''
+  document.querySelectorAll('#reportsGrid tr[data-aluno]').forEach(tr => {
+    const okNome  = !termo || (tr.dataset.aluno || '').includes(termo)
+    const okSetor = !setor || tr.dataset.setor === setor
+    tr.style.display = okNome && okSetor ? '' : 'none'
+  })
+  // Linhas por setor (tabela de setores e cabeçalhos de grupo dos pendentes)
+  document.querySelectorAll('#reportsGrid tr[data-setor-grp]').forEach(tr => {
+    tr.style.display = !setor || tr.dataset.setorGrp === setor ? '' : 'none'
+  })
+}
+window.filtrarRelatorios = filtrarRelatorios
+
+// Imprimir tabela "Quem Ainda Não Começou"
+function printPendentesTable() {
+  const table = document.getElementById('pendentesTable')
+  if (!table) { alert('Abra a seção "Quem Ainda Não Começou" antes de imprimir.'); return }
+
+  // Remove o estilo de impressão da outra tabela, se existir (evita conflito)
+  document.getElementById('_printRespondeuStyle')?.remove()
+
+  const totalAlunos  = table.dataset.totalAlunos || ''
+  const numPendentes = table.dataset.pendentes   || ''
+
+  let html = table.outerHTML
+    .replace(/var\(--border\)/g,        '#e5e7eb')
+    .replace(/var\(--surface\)/g,       '#f9fafb')
+    .replace(/var\(--text-primary\)/g,  '#111827')
+    .replace(/var\(--text-secondary\)/g,'#6b7280')
+    .replace(/var\(--primary-soft\)/g,  '#e6f4f1')
+    .replace(/var\(--primary\)/g,       '#0f766e')
+    .replace(/var\(--radius\)/g,        '6px')
+    .replace(/var\(--bg\)/g,            '#ffffff')
+    .replace(/onmouseover="[^"]*"/g, '')
+    .replace(/onmouseout="[^"]*"/g,  '')
+
+  let overlay = document.getElementById('_printPendentesOverlay')
+  if (!overlay) {
+    overlay = document.createElement('div')
+    overlay.id = '_printPendentesOverlay'
+    document.body.appendChild(overlay)
+  }
+
+  overlay.innerHTML = `
+    <div style="font-family:Arial,sans-serif;color:#111827;padding:1.5cm">
+      <p style="font-size:22pt;font-weight:700;margin:0 0 4pt">EduJuju — Hospital Infantil Dr. Juvêncio Mattos</p>
+      <p style="font-size:16pt;font-weight:600;color:#374151;margin:0 0 4pt">Quem Ainda Não Começou — pendentes por setor</p>
+      <p style="font-size:12pt;color:#6b7280;margin:0 0 16pt">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+      <div style="margin-bottom:16pt;padding:8pt 12pt;background:#f3f4f6;border-radius:6px;font-size:12pt">
+        ⏳ <strong>${numPendentes}</strong> de <strong>${totalAlunos}</strong> alunos ainda não começaram o treinamento
+      </div>
+      ${html}
+    </div>`
+
+  let style = document.getElementById('_printPendentesStyle')
+  if (!style) {
+    style = document.createElement('style')
+    style.id = '_printPendentesStyle'
+    document.head.appendChild(style)
+  }
+  style.textContent = `
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      body > *:not(#_printPendentesOverlay) { display: none !important; }
+      #_printPendentesOverlay { display: block !important; }
+      #_printPendentesOverlay table { width:100%; border-collapse:collapse; font-size:12pt; }
+      #_printPendentesOverlay th   { font-size:10pt; padding:6pt 8pt; background:#f3f4f6;
+                                     border-bottom:2px solid #ccc; text-transform:uppercase; color:#555; text-align:left }
+      #_printPendentesOverlay td   { font-size:12pt; padding:7pt 8pt; border-bottom:1px solid #e5e7eb; }
+      #_printPendentesOverlay td div { font-size:10pt; }
+    }
+    #_printPendentesOverlay { display: none; }
+  `
+
+  window.print()
+  window.addEventListener('afterprint', () => { overlay.innerHTML = '' }, { once: true })
+}
+window.printPendentesTable = printPendentesTable
+
 // Marcar/desmarcar todos os chips do modal PDF
 function setAllPdfChips(on) {
   document.querySelectorAll('.pdf-chip').forEach(chip => {
@@ -3980,6 +4169,14 @@ document.querySelectorAll('.pdf-chip').forEach(chip => {
 
 // Abre modal de seleção do PDF
 document.getElementById('btnGerarPDF')?.addEventListener('click', () => {
+  // Popula o filtro de setor com os setores carregados nos relatórios
+  const sel = document.getElementById('pdfSetor')
+  if (sel) {
+    const atual = sel.value
+    sel.innerHTML = '<option value="">Todos os setores</option>' +
+      _rptSetores.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('')
+    sel.value = atual
+  }
   document.getElementById('modalPDF').classList.add('open')
 })
 document.getElementById('closeModalPDF')?.addEventListener('click',  () => document.getElementById('modalPDF').classList.remove('open'))
@@ -3993,6 +4190,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
   const incAvaliacoes = document.getElementById('pdfChkAvaliacoes')?.checked ?? false
   const incRanking    = document.getElementById('pdfChkRanking')?.checked ?? false
   const incDuvidas    = document.getElementById('pdfChkDuvidas')?.checked ?? false
+  const setorFiltro   = document.getElementById('pdfSetor')?.value || ''
 
   document.getElementById('modalPDF').classList.remove('open')
 
@@ -4013,7 +4211,9 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       { data: avaliacoesDb },
       { data: notasAvaliacao },
       { data: usersDb },
-      { data: questoesAvRows }
+      { data: questoesAvRows },
+      { data: questoesVidPdf },
+      { data: progressoVidPdf }
     ] = await Promise.all([
       supabase.from('trilhas').select('*', { count: 'exact', head: true }),
       supabase.from('videos').select('*', { count: 'exact', head: true }),
@@ -4026,7 +4226,9 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
       fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')),
       supabase.from('users').select('id, name, sector, role'),
-      supabase.from('questoes_avaliacao').select('avaliacao_id')
+      supabase.from('questoes_avaliacao').select('avaliacao_id'),
+      supabase.from('questoes_sala_de_aula').select('video_id'),
+      fetchAll(() => supabase.from('progresso_usuario').select('user_id').eq('item_tipo', 'video').eq('concluido', true))
     ])
 
     // Perguntas = questões dos quizzes + questões das avaliações
@@ -4034,6 +4236,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 
     const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
     const trilhaList = trilhas || []
+    const cUsersPdf = setorFiltro ? (usersDb || []).filter(u => (u.sector || '').trim() === setorFiltro).length : (cUsers || 0)
 
     const esc = s => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 
@@ -4044,24 +4247,53 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       return `<span style="display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.78rem;font-weight:700;background:${bg};color:${color}">${n}%</span>`
     }
 
+    // Legenda dos vídeos (as colunas das tabelas são numeradas)
+    const legendaTrilhas = `<div style="padding:0.7rem 1.25rem 0.1rem;font-size:0.72rem;color:#475569;line-height:1.7">${trilhaList.map((t, i) => `<span style="display:inline-block;margin-right:14px"><strong style="color:#134e4a">Vídeo ${i + 1}</strong> — ${esc(t.title)}</span>`).join('')}</div>`
+
     // ── Pivot: usuário × trilha ──
     const userMap = {}
     for (const row of (porUsuarioTrilha || [])) {
       if (!userMap[row.user_id]) userMap[row.user_id] = { name: row.name, email: row.email, sector: row.sector || 'Não informado', role: row.role, trilhas: {} }
       userMap[row.user_id].trilhas[row.video_id] = { nota: row.nota_pct, respondidas: Number(row.total_respondidas), acertos: Number(row.acertos) || 0 }
     }
-    // Só entra no PDF quem respondeu ao menos uma pergunta de quiz
+    // Só entra no PDF quem respondeu ao menos uma pergunta de quiz (e do setor filtrado, se houver)
     const usersArr = Object.values(userMap).filter(u =>
-      Object.values(u.trilhas).some(d => d.respondidas > 0)
+      Object.values(u.trilhas).some(d => d.respondidas > 0) &&
+      (!setorFiltro || (u.sector || '').trim() === setorFiltro)
     )
     usersArr.sort((a, b) => {
       const avg = u => { const ns = trilhaList.map(t => u.trilhas[t.id]?.nota).filter(n => n != null); return ns.length ? ns.reduce((s,n)=>s+Number(n),0)/ns.length : -1 }
       return avg(b) - avg(a)
     })
 
+    // ── Engajamento: concluiu = nota fechada em todos os vídeos com quiz ──
+    const videosComQuizPdf = [...new Set((questoesVidPdf || []).map(q => q.video_id).filter(v => v !== null && v !== undefined).map(String))]
+    const concluiuTudo = u => videosComQuizPdf.length > 0 && videosComQuizPdf.every(vid => {
+      const d = u.trilhas[vid]
+      return d && d.nota !== null && d.nota !== undefined
+    })
+    const totalConcluiram = usersArr.filter(concluiuTudo).length
+
+    const engajamento = {}
+    for (const u of usersArr) {
+      const s = (u.sector || '').trim() || 'Não informado'
+      if (!engajamento[s]) engajamento[s] = { part: 0, concl: 0 }
+      engajamento[s].part++
+      if (concluiuTudo(u)) engajamento[s].concl++
+    }
+    const setorEngRows = Object.entries(engajamento)
+      .sort((a, b) => b[1].part - a[1].part)
+      .map(([s, d]) => {
+        const inc = d.part - d.concl
+        const conclTxt = d.concl === 1 ? '1 concluiu' : `${d.concl} concluíram`
+        const incTxt = inc === 0 ? '' : inc === 1 ? ', 1 está incompleto' : `, ${inc} estão incompletos`
+        return `<div>• <strong>${esc(s)}:</strong> ${d.part} participante${d.part !== 1 ? 's' : ''} (${conclTxt}${incTxt}).</div>`
+      }).join('') || '<div style="color:#9ca3af">Sem participação ainda.</div>'
+
     // ── Pivot: setor × trilha ──
     const setorMap = {}
     for (const row of (porSetorTrilha || [])) {
+      if (setorFiltro && (row.sector || '').trim() !== setorFiltro) continue
       const s = row.sector || 'Não informado'
       if (!setorMap[s]) setorMap[s] = { trilhas: {} }
       setorMap[s].trilhas[row.video_id] = row.media_pct
@@ -4073,7 +4305,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
     const tdCStyle = 'padding:0.5rem 0.6rem;text-align:center;border-bottom:1px solid #f1f5f9;font-size:0.78rem;vertical-align:middle'
 
     // Ranking individual
-    const rankHeaderCols = trilhaList.map(t => `<th style="${thCStyle}" title="${esc(t.title)}">${esc(t.topics || t.title.substring(0,14))}</th>`).join('')
+    const rankHeaderCols = trilhaList.map((t, i) => `<th style="${thCStyle}" title="${esc(t.title)}">Vídeo ${i + 1}</th>`).join('')
     const medals = ['🥇','🥈','🥉']
     const rankBodyRows = usersArr.map((u, i) => {
       const rankNum = i < 3 ? medals[i] : `${i+1}º`
@@ -4102,7 +4334,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
     }).join('')
 
     // Setores
-    const setorHeaderCols = trilhaList.map(t => `<th style="${thCStyle}" title="${esc(t.title)}">${esc(t.topics || t.title.substring(0,14))}</th>`).join('')
+    const setorHeaderCols = trilhaList.map((t, i) => `<th style="${thCStyle}" title="${esc(t.title)}">Vídeo ${i + 1}</th>`).join('')
     const setorBodyRows = Object.entries(setorMap).map(([setor, d], i) => {
       const cols = trilhaList.map(t => {
         const pct = d.trilhas[t.id]
@@ -4120,7 +4352,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 
     // Notas dos quizzes (respondidos após os vídeos) por aluno
     const quizPctPdf = d => (d.nota !== null && d.nota !== undefined) ? Number(d.nota) : Math.round((d.acertos / d.respondidas) * 100)
-    const quizHeaderCols = trilhaList.map(t => `<th style="${thCStyle}" title="${esc(t.title)}">${esc(t.topics || t.title.substring(0,14))}</th>`).join('')
+    const quizHeaderCols = trilhaList.map((t, i) => `<th style="${thCStyle}" title="${esc(t.title)}">Vídeo ${i + 1}</th>`).join('')
     const quizBodyRows = usersArr.map((u, i) => {
       const cols = trilhaList.map(t => {
         const d = u.trilhas[t.id]
@@ -4151,10 +4383,13 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       avNotaMapPdf[r.user_id][String(r.avaliacao_id)] = Number(r.nota_pct)
     }
     const avListPdf = avaliacoesDb || []
-    const avHeaderCols = avListPdf.map(a => `<th style="${thCStyle}" title="${esc(a.titulo)}">${esc(a.topics || a.titulo.substring(0,14))}</th>`).join('')
-    const avEntries = Object.entries(avNotaMapPdf).sort((a, b) =>
-      (userInfoMap[a[0]]?.name || '').localeCompare(userInfoMap[b[0]]?.name || '')
-    )
+    const legendaAv = `<div style="padding:0.7rem 1.25rem 0.1rem;font-size:0.72rem;color:#475569;line-height:1.7">${avListPdf.map((a, i) => `<span style="display:inline-block;margin-right:14px"><strong style="color:#134e4a">Avaliação ${i + 1}</strong> — ${esc(a.titulo)}</span>`).join('')}</div>`
+    const avHeaderCols = avListPdf.map((a, i) => `<th style="${thCStyle}" title="${esc(a.titulo)}">Avaliação ${i + 1}</th>`).join('')
+    const avEntries = Object.entries(avNotaMapPdf)
+      .filter(([uid]) => !setorFiltro || ((userInfoMap[uid]?.sector || '').trim() === setorFiltro))
+      .sort((a, b) =>
+        (userInfoMap[a[0]]?.name || '').localeCompare(userInfoMap[b[0]]?.name || '')
+      )
     const avBodyRows = avEntries.map(([uid, notas], i) => {
       const u = userInfoMap[uid] || {}
       const cols = avListPdf.map(a => {
@@ -4174,6 +4409,42 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       </tr>`
     }).join('')
 
+    // ── Métricas dos cards (iguais às da tela de Relatórios) ──
+    const usersDbFiltrados = (usersDb || []).filter(u => !setorFiltro || (u.sector || '').trim() === setorFiltro)
+    const fezAlgoPdf = new Set([
+      ...Object.keys(userMap),
+      ...Object.keys(avNotaMapPdf),
+      ...(progressoVidPdf || []).map(r => String(r.user_id))
+    ])
+    const comecaramPdf = usersDbFiltrados.filter(u => fezAlgoPdf.has(String(u.id))).length
+    const adesaoPdf = cUsersPdf ? Math.round((comecaramPdf / cUsersPdf) * 100) : 0
+
+    const notasFechadasPdf = usersArr
+      .flatMap(u => Object.values(u.trilhas))
+      .map(d => d.nota)
+      .filter(n => n !== null && n !== undefined)
+      .map(Number)
+    const mediaGeralPdf = notasFechadasPdf.length
+      ? Math.round(notasFechadasPdf.reduce((s, n) => s + n, 0) / notasFechadasPdf.length) : null
+
+    const avIdsVisPdf = avListPdf.map(a => String(a.id))
+    const aptosCertPdf = (videosComQuizPdf.length > 0 || avIdsVisPdf.length > 0)
+      ? usersDbFiltrados.filter(u =>
+          videosComQuizPdf.every(vid => {
+            const d = userMap[u.id]?.trilhas?.[vid]
+            return d && d.nota !== null && d.nota !== undefined
+          }) &&
+          avIdsVisPdf.every(a => avNotaMapPdf[u.id]?.[a] !== undefined)
+        ).length
+      : 0
+
+    const statCard = (icon, value, label, color, bgSoft) => `
+      <div style="flex:1;min-width:150px;background:linear-gradient(160deg,#ffffff 30%,${bgSoft} 100%);border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1rem;text-align:center;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
+        <div style="width:2.7rem;height:2.7rem;margin:0 auto 0.6rem;display:flex;align-items:center;justify-content:center;border-radius:50%;background:${bgSoft};font-size:1.3rem">${icon}</div>
+        <div style="font-size:2.1rem;font-weight:800;color:${color};line-height:1;letter-spacing:-0.02em">${value}</div>
+        <div style="font-size:0.72rem;color:#64748b;margin-top:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">${label}</div>
+      </div>`
+
     const sectionCard = (title, icon, content) => `
       <div style="margin-bottom:2rem;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
         <div style="display:flex;align-items:center;gap:0.65rem;padding:0.95rem 1.25rem;background:linear-gradient(90deg,#f0fdfa 0%,#ecfdf5 60%,#ffffff 100%);border-bottom:2px solid #ccfbf1;border-left:5px solid #006a61">
@@ -4181,13 +4452,6 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
           <span style="font-size:0.95rem;font-weight:700;color:#134e4a;letter-spacing:-0.01em">${title}</span>
         </div>
         <div style="overflow-x:auto">${content}</div>
-      </div>`
-
-    const statCard = (icon, value, label, color, bgSoft) => `
-      <div style="flex:1;min-width:140px;background:linear-gradient(160deg,#ffffff 30%,${bgSoft} 100%);border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1rem;text-align:center;box-shadow:0 2px 10px rgba(15,23,42,0.06)">
-        <div style="width:2.7rem;height:2.7rem;margin:0 auto 0.6rem;display:flex;align-items:center;justify-content:center;border-radius:50%;background:${bgSoft};font-size:1.3rem">${icon}</div>
-        <div style="font-size:2.1rem;font-weight:800;color:${color};line-height:1;letter-spacing:-0.02em">${value}</div>
-        <div style="font-size:0.72rem;color:#64748b;margin-top:0.35rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em">${label}</div>
       </div>`
 
     const html = `<!DOCTYPE html>
@@ -4217,52 +4481,67 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       <div style="font-size:0.85rem;color:rgba(255,255,255,0.88);margin-top:0.25rem">Hospital Infantil Dr. Juvêncio Mattos</div>
     </div>
     <div style="text-align:right">
-      <div style="display:inline-block;padding:0.3rem 0.85rem;border-radius:999px;background:rgba(255,255,255,0.18);font-size:0.72rem;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem">Relatório de Desempenho</div>
+      <div style="display:inline-block;padding:0.3rem 0.85rem;border-radius:999px;background:rgba(255,255,255,0.18);font-size:0.72rem;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem">Relatório de Desempenho${setorFiltro ? ' — ' + esc(setorFiltro) : ''}</div>
       <div style="font-size:0.85rem;color:rgba(255,255,255,0.88)">${today}</div>
     </div>
   </div>
 
-  <!-- Resumo -->
+  <!-- Cards de métricas -->
   ${incResumo ? `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem" class="no-break">
-    ${statCard('🛤️', cTrilhas || 0, (cTrilhas || 0) !== 1 ? 'Trilhas' : 'Trilha', '#006a61', '#f0fdfa')}
-    ${statCard('🎬', cVideos || 0, 'Vídeos', '#0f766e', '#f0fdfa')}
-    ${statCard('❓', cQuestoesTotal, 'Perguntas', '#0369a1', '#f0f9ff')}
-    ${statCard('👥', cUsers || 0, 'Alunos', '#15803d', '#f0fdf4')}
+    ${statCard('🙋', adesaoPdf + '%', `Adesão — ${comecaramPdf} de ${cUsersPdf} começaram`, '#006a61', '#f0fdfa')}
+    ${statCard('📊', mediaGeralPdf !== null ? mediaGeralPdf + '%' : '—', 'Média geral dos quizzes', '#0f766e', '#f0fdfa')}
+    ${statCard('✅', totalConcluiram, 'Responderam todos os quizzes', '#15803d', '#f0fdf4')}
+    ${statCard('🏅', aptosCertPdf, 'Aptos a certificado', '#92400e', '#fef3c7')}
   </div>` : ''}
+
+  <!-- Visão Geral de Participação -->
+  ${incResumo ? sectionCard('Visão Geral de Participação', '👥', `
+    <div style="padding:1rem 1.25rem;font-size:0.85rem;color:#1e293b;line-height:1.9">
+      <div>• <strong>Total de colaboradores mapeados:</strong> ${cUsersPdf}</div>
+      <div>• <strong>Responderam ao menos 1 questão:</strong> ${usersArr.length} colaborador${usersArr.length !== 1 ? 'es' : ''}</div>
+      <div>• <strong>Concluíram 100% dos quizzes:</strong> ${totalConcluiram} colaborador${totalConcluiram !== 1 ? 'es' : ''}</div>
+    </div>`) : ''}
+
+  <!-- Resumo do Engajamento por Setor -->
+  ${incResumo ? sectionCard('Resumo do Engajamento por Setor', '📈', `
+    <div style="padding:1rem 1.25rem;font-size:0.85rem;color:#1e293b;line-height:1.9">
+      ${setorEngRows}
+    </div>`) : ''}
 
   <!-- Desempenho por Setor -->
   ${incSetor ? sectionCard('Desempenho por Setor — todas as trilhas', '🏢',
     setorBodyRows
-      ? `<table><thead><tr><th style="${thStyle}">Setor</th>${setorHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${setorBodyRows}</tbody></table>`
+      ? legendaTrilhas + `<table><thead><tr><th style="${thStyle}">Setor</th>${setorHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${setorBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
   ) : ''}
 
   <!-- Notas dos Quizzes -->
   ${incQuizzes ? sectionCard('Notas dos Quizzes por Aluno — respondidos após os vídeos', '📝',
     quizBodyRows
-      ? `<table><thead><tr><th style="${thStyle}">Aluno</th>${quizHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${quizBodyRows}</tbody></table>`
+      ? legendaTrilhas + `<table><thead><tr><th style="${thStyle}">Aluno</th>${quizHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${quizBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
   ) : ''}
 
   <!-- Notas das Avaliações -->
   ${incAvaliacoes ? sectionCard('Notas das Avaliações por Aluno', '📋',
     avBodyRows && avListPdf.length
-      ? `<table><thead><tr><th style="${thStyle}">Aluno</th>${avHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${avBodyRows}</tbody></table>`
+      ? legendaAv + `<table><thead><tr><th style="${thStyle}">Aluno</th>${avHeaderCols}<th style="${thCStyle}">Média</th></tr></thead><tbody>${avBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — nenhuma avaliação concluída</p>`
   ) : ''}
 
   <!-- Ranking Individual -->
   ${incRanking ? sectionCard('Ranking Individual — desempenho por trilha', '🏆',
     rankBodyRows
-      ? `<table><thead><tr><th style="${thCStyle}">#</th><th style="${thStyle}">Nome</th>${rankHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${rankBodyRows}</tbody></table>`
+      ? legendaTrilhas + `<table><thead><tr><th style="${thCStyle}">#</th><th style="${thStyle}">Nome</th>${rankHeaderCols}<th style="${thCStyle}">Média Geral</th></tr></thead><tbody>${rankBodyRows}</tbody></table>`
       : `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda — aguardando respostas dos alunos</p>`
   ) : ''}
 
   <!-- Principais Dúvidas -->
   ${incDuvidas ? sectionCard('Principais Dúvidas — perguntas com maior taxa de erro', '🧠', (() => {
-    if (!principais_duvidas?.length) return `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem dados ainda</p>`
+    const duvidasPdf = (principais_duvidas || []).filter(d => Number(d.total_respostas) >= 5)
+    if (!duvidasPdf.length) return `<p style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem">Sem perguntas com pelo menos 5 respostas ainda</p>`
     const grupos = {}
-    for (const d of principais_duvidas) {
+    for (const d of duvidasPdf) {
       const key = d.trilha || '—'
       if (!grupos[key]) grupos[key] = []
       grupos[key].push(d)
