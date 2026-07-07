@@ -484,7 +484,11 @@ async function updateGradeCard() {
   let hasData = false
 
   if (notasData?.length) {
-    const notas = notasData.map(r => Number(r.nota_pct)).filter(n => !isNaN(n))
+    // null = quiz não iniciado/incompleto (fora da média); 0 = nota real, conta
+    const notas = notasData
+      .filter(r => r.nota_pct !== null && r.nota_pct !== undefined)
+      .map(r => Number(r.nota_pct))
+      .filter(n => !isNaN(n))
     if (notas.length) {
       pct = Math.round(notas.reduce((s, n) => s + n, 0) / notas.length)
       hasData = true
@@ -1133,8 +1137,11 @@ async function loadPerfilConquistas() {
   }
 
   // Mapa de nota por video_id
+  // null = quiz não iniciado/incompleto (fora do mapa); 0 = nota real, conta
   const notaMap = {}
-  for (const r of (notasRaw || [])) notaMap[r.video_id] = Number(r.nota_pct)
+  for (const r of (notasRaw || [])) {
+    if (r.nota_pct !== null && r.nota_pct !== undefined) notaMap[r.video_id] = Number(r.nota_pct)
+  }
 
   // Agrupa por topics
   const trilhaMap = {}
@@ -3450,12 +3457,12 @@ async function loadReports() {
     supabase.from('videos').select('*', { count: 'exact', head: true }),
     supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true }),
-    supabase.from('v_desempenho_usuario_trilha').select('*'),
+    fetchAll(() => supabase.from('v_desempenho_usuario_trilha').select('*').gt('total_respondidas', 0)),
     supabase.from('v_desempenho_setor_trilha').select('*'),
     supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
     supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(30),
     supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct'),
+    fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')),
     supabase.from('questoes_avaliacao').select('avaliacao_id')
   ])
 
@@ -3542,7 +3549,7 @@ async function loadReports() {
 
     const trilhaCols = trilhaList.map(t => {
       const d = u.trilhas[t.id]
-      if (!d) return `<td style="${tdC}">—</td>`
+      if (!d) return `<td style="${tdC}"><span style="font-size:0.7rem;color:var(--text-secondary)">Não iniciado</span></td>`
       if (d.nota !== null && d.nota !== undefined) return `<td style="${tdC}">${notaBadge(d.nota)}</td>`
       if (d.respondidas > 0) {
         const parcial = Math.round((d.acertos / d.respondidas) * 100)
@@ -3630,7 +3637,8 @@ async function loadReports() {
     for (const u of (soAvUsers || [])) avUsersMap[u.id] = { name: u.name || '—', sector: u.sector || '' }
     for (const uid of soAvUids) if (!avUsersMap[uid]) avUsersMap[uid] = { name: '—', sector: '' }
   }
-  const avRows = Object.entries(avUsersMap).map(([uid, u]) => {
+  // Só entra na tabela quem fez ao menos uma avaliação
+  const avRows = Object.entries(avUsersMap).filter(([uid]) => avNotaMap[uid]).map(([uid, u]) => {
     const cols = avList.map(a => {
       const nota = avNotaMap[uid]?.[String(a.id)]
       return `<td style="${tdC}">${nota !== undefined ? barra(nota) : '<span style="color:var(--text-secondary);font-size:0.75rem">—</span>'}</td>`
@@ -3754,7 +3762,7 @@ async function loadReports() {
     <table id="respondeuTable" class="resp-table" style="width:100%;border-collapse:collapse"
       data-respondeu-algo="${respondeuAlgo.length}"
       data-respondeu-tudo="${respondeuTudo.length}"
-      data-total-alunos="${usersArr.length}">
+      data-total-alunos="${cUsers || 0}">
       <thead style="background:var(--surface)"><tr>
         <th style="${thS}">Aluno</th>
         <th style="${thC}">Questões<br>Respondidas</th>
@@ -3969,12 +3977,12 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       supabase.from('videos').select('*', { count: 'exact', head: true }),
       supabase.from('questoes_sala_de_aula').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('*', { count: 'exact', head: true }),
-      supabase.from('v_desempenho_usuario_trilha').select('*'),
+      fetchAll(() => supabase.from('v_desempenho_usuario_trilha').select('*').gt('total_respondidas', 0)),
       supabase.from('v_desempenho_setor_trilha').select('*'),
       supabase.from('videos').select('id, title, topics').order('ordem', { ascending: true }),
       supabase.from('v_principais_duvidas').select('*').order('pct_erro', { ascending: false }).limit(50),
       supabase.from('avaliacoes').select('id, titulo, topics').eq('visivel', true).order('ordem', { ascending: true }),
-      supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct'),
+      fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id, nota_pct')),
       supabase.from('users').select('id, name, sector, role'),
       supabase.from('questoes_avaliacao').select('avaliacao_id')
     ])
@@ -4029,7 +4037,7 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
       const rankNum = i < 3 ? medals[i] : `${i+1}º`
       const trilhaCols = trilhaList.map(t => {
         const d = u.trilhas[t.id]
-        if (!d) return `<td style="${tdCStyle}"><span style="color:#9ca3af;font-size:0.75rem">—</span></td>`
+        if (!d) return `<td style="${tdCStyle}"><span style="color:#9ca3af;font-size:0.75rem">Não iniciado</span></td>`
         if (d.nota !== null && d.nota !== undefined) return `<td style="${tdCStyle}">${badge(d.nota)}</td>`
         if (d.respondidas > 0) {
           const parcial = Math.round((d.acertos / d.respondidas) * 100)
@@ -4268,6 +4276,21 @@ document.getElementById('confirmarPDF')?.addEventListener('click', async () => {
 // ============================================
 // HELPERS
 // ============================================
+
+// O Supabase corta silenciosamente em 1000 linhas por requisição.
+// Busca todas as linhas paginando; buildQuery deve retornar uma query nova a cada chamada.
+async function fetchAll(buildQuery) {
+  const PAGE = 1000
+  let rows = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await buildQuery().range(from, from + PAGE - 1)
+    if (error) return { data: rows, error }
+    rows = rows.concat(data || [])
+    if (!data || data.length < PAGE) break
+  }
+  return { data: rows, error: null }
+}
+
 function ytVideoId(url) {
   if (!url) return ''
   try {
@@ -4710,7 +4733,7 @@ async function loadHome() {
   const rankingEl = document.getElementById('homeRanking')
   if (rankingEl) {
     rankingEl.innerHTML = '<div style="padding:1rem;text-align:center"><span class="material-symbols-outlined" style="animation:spin 1s linear infinite;color:var(--primary)">progress_activity</span></div>'
-    const { data: rankData } = await supabase.from('v_desempenho_usuario_trilha').select('user_id, nota_pct')
+    const { data: rankData } = await fetchAll(() => supabase.from('v_desempenho_usuario_trilha').select('user_id, nota_pct').not('nota_pct', 'is', null))
     if (rankData?.length) {
       const agg = {}
       for (const r of rankData) {
@@ -5204,8 +5227,8 @@ async function loadAdminCertificados() {
 
   const [{ data: users }, { data: desempenho }, { data: notasAv }, { data: avaliacoesVis }, { data: questoesVid }] = await Promise.all([
     supabase.from('users').select('id, name, email, sector').order('name', { ascending: true }),
-    supabase.from('v_desempenho_usuario_trilha').select('user_id, video_id, nota_pct'),
-    supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id'),
+    fetchAll(() => supabase.from('v_desempenho_usuario_trilha').select('user_id, video_id, nota_pct').not('nota_pct', 'is', null)),
+    fetchAll(() => supabase.from('v_desempenho_usuario_avaliacao').select('user_id, avaliacao_id')),
     supabase.from('avaliacoes').select('id').eq('visivel', true),
     supabase.from('questoes_sala_de_aula').select('video_id')
   ])
