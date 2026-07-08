@@ -131,10 +131,10 @@
   --on-surface:       #191c1d;
   --on-surface-var:   #464555;
 
-  --primary:          #3525cd;
+  --primary:          #006a61;
   --on-primary:       #ffffff;
-  --primary-soft:     rgba(53, 37, 205, 0.10);
-  --primary-dim:      #e2dfff;
+  --primary-soft:     rgba(0, 106, 97, 0.10);
+  --primary-dim:      #ccfbf1;
 
   --secondary:        #006a61;
   --on-secondary:     #ffffff;
@@ -181,10 +181,10 @@
   --on-surface:       #e2e4e5;
   --on-surface-var:   #bbbdc0;
 
-  --primary:          #c3c0ff;
-  --on-primary:       #0f0069;
-  --primary-soft:     rgba(195, 192, 255, 0.13);
-  --primary-dim:      #2e257a;
+  --primary:          #6bd8cb;
+  --on-primary:       #00201d;
+  --primary-soft:     rgba(107, 216, 203, 0.13);
+  --primary-dim:      #004d46;
 
   --secondary:        #6bd8cb;
   --on-secondary:     #00201d;
@@ -1249,7 +1249,7 @@ ul { list-style: none; }
 .ach-badge.gold   { background: radial-gradient(circle at 40% 35%, #fde68a, #f59e0b); box-shadow: 0 0 0 4px #fef3c7, 0 0 16px #f59e0b66; }
 .ach-badge.silver { background: radial-gradient(circle at 40% 35%, #e2e8f0, #94a3b8); box-shadow: 0 0 0 4px #f1f5f9, 0 0 12px #94a3b855; }
 .ach-badge.bronze { background: radial-gradient(circle at 40% 35%, #fcd34d, #b45309); box-shadow: 0 0 0 4px #fef3c7, 0 0 12px #b4530944; }
-.ach-badge.started{ background: radial-gradient(circle at 40% 35%, #ddd6fe, var(--primary)); box-shadow: 0 0 0 4px #ede9fe, 0 0 12px #818cf844; }
+.ach-badge.started{ background: radial-gradient(circle at 40% 35%, #99f6e4, var(--primary)); box-shadow: 0 0 0 4px #ccfbf1, 0 0 12px #2dd4bf44; }
 .ach-badge.locked { background: var(--surface-high); box-shadow: none; filter: grayscale(1); opacity: 0.55; }
 
 /* Glow pulse on gold */
@@ -1273,7 +1273,7 @@ ul { list-style: none; }
 .ach-nota.gold   { background: #fef3c7; color: #92400e; }
 .ach-nota.silver { background: #f1f5f9; color: #475569; }
 .ach-nota.bronze { background: #fef3c7; color: #92400e; }
-.ach-nota.started{ background: #ede9fe; color: #5b21b6; }
+.ach-nota.started{ background: #ccfbf1; color: #134e4a; }
 .ach-nota.none   { background: var(--surface-high); color: var(--on-surface-var); }
 
 /* Progress bar */

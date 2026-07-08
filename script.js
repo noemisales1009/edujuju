@@ -5226,11 +5226,36 @@ async function checkTrilhaConcluidaEConfetti(videoId) {
 // ============================================
 async function syncLocalProgress(userId) {
   if (!userId) return
-  const { data: progressData } = await supabase
-    .from('progresso_usuario')
-    .select('item_id, item_tipo')
-    .eq('user_id', userId)
-    .eq('concluido', true)
+  const [{ data: progressData }, { data: uRow }] = await Promise.all([
+    supabase.from('progresso_usuario')
+      .select('item_id, item_tipo')
+      .eq('user_id', userId)
+      .eq('concluido', true),
+    supabase.from('users')
+      .select('progresso_resetado_em')
+      .eq('id', userId)
+      .maybeSingle()
+  ])
+
+  // Se um admin zerou o progresso deste usuário depois do último sync,
+  // limpa as marcações locais — senão o "reparo" abaixo devolveria tudo pro banco
+  const resetEm = uRow?.progresso_resetado_em || null
+  if (resetEm && resetEm !== localStorage.getItem(`eduflow-reset-${userId}`)) {
+    const prefixos = [
+      `eduflow-prog-${userId}-`,
+      `eduflow-artigo-${userId}-`,
+      `eduflow-av-${userId}-`,
+      `eduflow-watched-${userId}-`
+    ]
+    const apagar = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && prefixos.some(p => key.startsWith(p))) apagar.push(key)
+    }
+    apagar.forEach(k => localStorage.removeItem(k))
+    localStorage.setItem(`eduflow-reset-${userId}`, resetEm)
+  }
+
   if (progressData) {
     // Repara marcações antigas que ficaram só no navegador: sobe pro banco
     // antes de reconstruir (senão a limpeza abaixo as apagaria de vez)
@@ -5583,27 +5608,27 @@ async function gerarCertificado(userId, userName) {
 *{margin:0;padding:0;box-sizing:border-box}
 @page{size:A4 landscape;margin:0}
 body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;overflow:hidden;background:#fff;display:flex}
-.side{width:48px;background:linear-gradient(180deg,#4f46e5 0%,#7c3aed 55%,#f59e0b 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.side{width:48px;background:linear-gradient(180deg,#00524b 0%,#0f9488 55%,#f59e0b 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .side-text{color:rgba(255,255,255,0.6);font-size:0.5rem;letter-spacing:0.22em;text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);font-family:'Segoe UI',Arial,sans-serif}
 .main{flex:1;display:flex;flex-direction:column}
-.top-bar{height:6px;background:linear-gradient(90deg,#4f46e5,#7c3aed,#f59e0b)}
-.hdr{padding:14px 40px 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #ede9fe;background:#faf9ff}
-.hdr-tag{font-size:0.62rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#7c3aed;font-family:'Segoe UI',Arial,sans-serif}
+.top-bar{height:6px;background:linear-gradient(90deg,#00524b,#0f9488,#f59e0b)}
+.hdr{padding:14px 40px 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #ccfbf1;background:#f7fdfc}
+.hdr-tag{font-size:0.62rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#0f766e;font-family:'Segoe UI',Arial,sans-serif}
 .hdr-hospital{font-size:1rem;font-weight:700;color:#1a1a2e;margin-top:2px;font-family:'Georgia',serif}
 .hdr-right{display:flex;align-items:center;gap:10px}
 .hdr-icon{font-size:2.4rem;line-height:1}
-.hdr-badge{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;font-size:0.58rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:4px 12px;border-radius:20px;font-family:'Segoe UI',Arial,sans-serif;white-space:nowrap}
+.hdr-badge{background:linear-gradient(135deg,#00524b,#0f9488);color:#fff;font-size:0.58rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:4px 12px;border-radius:20px;font-family:'Segoe UI',Arial,sans-serif;white-space:nowrap}
 .body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding:16px 52px 12px;text-align:center}
 .cert-top{display:flex;flex-direction:column;align-items:center;gap:4px}
 .lbl{font-size:0.68rem;color:#9ca3af;letter-spacing:0.16em;text-transform:uppercase;font-family:'Segoe UI',Arial,sans-serif}
 .name{font-size:2.6rem;font-weight:700;color:#1a1a2e;font-family:'Georgia',serif;line-height:1.15}
 .deco{display:flex;align-items:center;gap:10px;margin:0 auto}
-.deco-line{flex:1;height:1.5px;background:linear-gradient(90deg,transparent,#c4b5fd)}
-.deco-star{font-size:1rem;color:#7c3aed}
-.deco-line.r{background:linear-gradient(90deg,#c4b5fd,transparent)}
+.deco-line{flex:1;height:1.5px;background:linear-gradient(90deg,transparent,#5eead4)}
+.deco-star{font-size:1rem;color:#0f9488}
+.deco-line.r{background:linear-gradient(90deg,#5eead4,transparent)}
 .stmt{font-size:0.9rem;color:#374151;line-height:1.8;max-width:500px;font-family:'Segoe UI',Arial,sans-serif}
 .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
-.chip{background:#ede9fe;color:#5b21b6;border-radius:20px;padding:4px 14px;font-size:0.68rem;font-weight:600;font-family:'Segoe UI',Arial,sans-serif;border:1px solid #c4b5fd}
+.chip{background:#ccfbf1;color:#134e4a;border-radius:20px;padding:4px 14px;font-size:0.68rem;font-weight:600;font-family:'Segoe UI',Arial,sans-serif;border:1px solid #5eead4}
 .chip-av{background:#fef3c7;color:#92400e;border-color:#fcd34d}
 .chip-pos{background:#d1fae5;color:#065f46;border-color:#6ee7b7;font-size:0.74rem}
 .trilha-box{display:flex;flex-direction:column;gap:7px;max-width:660px}
@@ -5611,7 +5636,7 @@ body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;over
 .trilha-media{display:inline-block;margin-left:6px;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 12px;font-size:0.68rem;font-weight:800;border:1px solid #6ee7b7}
 .grp{display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap}
 .grp-lbl{font-size:0.56rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;flex-shrink:0}
-.ftr{padding:10px 40px 12px;display:flex;align-items:flex-end;justify-content:space-between;border-top:1.5px solid #e5e7eb;background:#faf9ff}
+.ftr{padding:10px 40px 12px;display:flex;align-items:flex-end;justify-content:space-between;border-top:1.5px solid #e5e7eb;background:#f7fdfc}
 .sig{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:155px}
 .sig-line{width:155px;border-top:1px solid #6b7280;margin-bottom:3px}
 .sig-name{font-size:0.68rem;font-weight:700;color:#1f2937;font-family:'Segoe UI',Arial,sans-serif}
@@ -5619,7 +5644,7 @@ body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;over
 .ftr-mid{text-align:center}
 .ftr-date{font-size:0.72rem;color:#4b5563;font-family:'Segoe UI',Arial,sans-serif;font-weight:600}
 .ftr-city{font-size:0.6rem;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;margin-top:2px}
-.bot-bar{height:6px;background:linear-gradient(90deg,#f59e0b,#7c3aed,#4f46e5)}
+.bot-bar{height:6px;background:linear-gradient(90deg,#f59e0b,#0f9488,#00524b)}
 </style>
 </head>
 <body>
@@ -5658,7 +5683,7 @@ body{font-family:'Georgia','Times New Roman',serif;width:297mm;height:210mm;over
     <div class="ftr-mid">
       <div class="ftr-date">${hoje}</div>
       <div class="ftr-city">São Luís — Maranhão</div>
-      <div style="font-size:0.52rem;color:#c4b5fd;font-family:'Segoe UI',Arial,sans-serif;margin-top:4px;letter-spacing:0.08em">Cód. ${userId.slice(0,8).toUpperCase()}</div>
+      <div style="font-size:0.52rem;color:#5eead4;font-family:'Segoe UI',Arial,sans-serif;margin-top:4px;letter-spacing:0.08em">Cód. ${userId.slice(0,8).toUpperCase()}</div>
     </div>
     <div class="sig">
       <div class="sig-line"></div>
@@ -5814,7 +5839,7 @@ async function resetProgressoDe(userId, nome) {
     return
   }
   logAudit('progresso_zerado', nome, data || {})
-  alert(`Progresso de "${nome}" zerado com sucesso!\n\nRespostas apagadas: ${data?.respostas ?? 0}\nProgresso apagado: ${data?.progresso ?? 0}\n\nPeça para o usuário sair e entrar novamente no app.`)
+  alert(`Progresso de "${nome}" zerado com sucesso!\n\nRespostas de quiz apagadas: ${data?.respostas ?? 0}\nRespostas de avaliação apagadas: ${data?.respostas_avaliacao ?? 0}\nVídeos/artigos concluídos apagados: ${data?.progresso ?? 0}\n\nO app do usuário limpa o progresso local sozinho na próxima vez que ele abrir a Home.`)
 }
 window.resetProgressoDe = resetProgressoDe
 
@@ -5887,15 +5912,15 @@ async function gerarPdfHistoricoLogin() {
       const ultimoAcesso = totalAcessos
         ? new Date(logins[0]).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         : '—'
-      const bg = i % 2 === 0 ? '#fff' : '#f8f7ff'
+      const bg = i % 2 === 0 ? '#fff' : '#f7fdfc'
       const corTotal = totalAcessos > 0 ? '#1a1a2e' : '#9ca3af'
       return `<tr style="background:${bg}">
-        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe">${i + 1}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;font-weight:600">${escHtml(u.name || '—')}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:#555">${escHtml(u.email || '—')}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:#555">${escHtml(u.sector || '—')}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:${corTotal};text-align:center;font-weight:600">${totalAcessos}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid #ede9fe;color:#555;white-space:nowrap">${ultimoAcesso}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ccfbf1">${i + 1}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ccfbf1;font-weight:600">${escHtml(u.name || '—')}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ccfbf1;color:#555">${escHtml(u.email || '—')}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ccfbf1;color:#555">${escHtml(u.sector || '—')}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ccfbf1;color:${corTotal};text-align:center;font-weight:600">${totalAcessos}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid #ccfbf1;color:#555;white-space:nowrap">${ultimoAcesso}</td>
       </tr>`
     }).join('')
 
@@ -5908,12 +5933,12 @@ async function gerarPdfHistoricoLogin() {
   * { margin:0; padding:0; box-sizing:border-box }
   @page { size: A4; margin: 20mm 15mm }
   body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #1a1a2e }
-  .header { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px; border-bottom:3px solid #4f46e5; margin-bottom:16px }
-  .header-title { font-size:18px; font-weight:700; color:#4f46e5 }
+  .header { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px; border-bottom:3px solid #006a61; margin-bottom:16px }
+  .header-title { font-size:18px; font-weight:700; color:#006a61 }
   .header-sub { font-size:11px; color:#6b7280; margin-top:3px }
   .header-date { font-size:11px; color:#6b7280; text-align:right }
   table { width:100%; border-collapse:collapse }
-  thead { background:#4f46e5; color:#fff }
+  thead { background:#006a61; color:#fff }
   th { padding:8px 12px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.05em }
   .footer { margin-top:16px; text-align:center; font-size:9px; color:#9ca3af; border-top:1px solid #e5e7eb; padding-top:8px }
 </style>
