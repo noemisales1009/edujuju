@@ -1166,9 +1166,11 @@ async function loadPerfilConquistas() {
 
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:1rem"><span class="material-symbols-outlined" style="animation:spin 1s linear infinite;color:var(--primary)">progress_activity</span></div>'
 
-  const [{ data: videos }, { data: notasRaw }] = await Promise.all([
+  const [{ data: videos }, { data: notasRaw }, { data: notasAv }, { data: avaliacoesVis }] = await Promise.all([
     supabase.from('videos').select('id, title, topics, duracao_seg').eq('visivel', true).order('ordem', { ascending: true }),
-    supabase.from('v_desempenho_usuario_trilha').select('video_id, nota_pct').eq('user_id', currentUser.id)
+    supabase.from('v_desempenho_usuario_trilha').select('video_id, nota_pct').eq('user_id', currentUser.id),
+    supabase.from('v_desempenho_usuario_avaliacao').select('avaliacao_id, nota_pct').eq('user_id', currentUser.id),
+    supabase.from('avaliacoes').select('id, titulo').eq('visivel', true)
   ])
 
   if (!videos?.length) {
@@ -1265,17 +1267,33 @@ async function loadPerfilConquistas() {
     ? `${horas}h${mins > 0 ? mins + 'm' : ''}`
     : (mins > 0 ? `${mins}m` : '0m')
 
-  const notaVals = (notasRaw || []).map(r => Number(r.nota_pct)).filter(n => !isNaN(n))
+  // NULL = trilha não iniciada, fica fora da média (Number(null) seria 0 e distorceria)
+  const notaVals = (notasRaw || [])
+    .filter(r => r.nota_pct !== null && r.nota_pct !== undefined)
+    .map(r => Number(r.nota_pct))
   const avgGeral = notaVals.length
     ? Math.round(notaVals.reduce((s, n) => s + n, 0) / notaVals.length)
     : null
 
+  // Pré-teste: média das avaliações com "pré" no título que o usuário concluiu.
+  // Pós-teste: os quizzes dos vídeos (respondidos após as aulas) — mesma regra do dashboard.
+  const ehPre = t => /pr[eé]\s*-?\s*teste|\bpr[eé]\b/i.test(t || '')
+  const preIds = new Set((avaliacoesVis || []).filter(a => ehPre(a.titulo)).map(a => String(a.id)))
+  const notasPre = (notasAv || [])
+    .filter(r => preIds.has(String(r.avaliacao_id)) && r.nota_pct !== null && r.nota_pct !== undefined)
+    .map(r => Number(r.nota_pct))
+  const avgPre = notasPre.length
+    ? Math.round(notasPre.reduce((s, n) => s + n, 0) / notasPre.length)
+    : null
+
   const elCert  = document.getElementById('statCert')
   const elHoras = document.getElementById('statHoras')
-  const elAvg   = document.getElementById('statAvg')
+  const elPre   = document.getElementById('statPre')
+  const elPos   = document.getElementById('statPos')
   if (elCert)  elCert.textContent  = desbloqueadas
   if (elHoras) elHoras.textContent = horasText
-  if (elAvg)   elAvg.textContent   = avgGeral !== null ? avgGeral + '%' : '—'
+  if (elPre)   elPre.textContent   = avgPre !== null ? avgPre + '%' : '—'
+  if (elPos)   elPos.textContent   = avgGeral !== null ? avgGeral + '%' : '—'
 
   // Atualiza contador no header
   const counter = document.getElementById('achievementsCounter')
@@ -4162,7 +4180,7 @@ async function loadReports() {
     const statusBadge = completo
       ? `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#e8f5e9;color:#2e7d32">✅ Respondeu tudo</span>`
       : totalRespondidas > 0
-        ? `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#fff8e1;color:#f57f17">⏳ Incompleto (${videosCompletos}/${totalVideos} vídeos)</span>`
+        ? `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#fff8e1;color:#f57f17">⏳ Incompleto (${videosCompletos}/${totalVideos} quizzes)</span>`
         : `<span style="padding:0.15rem 0.5rem;border-radius:999px;font-size:0.72rem;font-weight:700;background:#f5f5f5;color:#9e9e9e">Não iniciou</span>`
 
     const vistos = videosAssistidos(u)

@@ -1159,7 +1159,7 @@ ul { list-style: none; }
   gap: 0.875rem;
 }
 @media (min-width: 640px) {
-  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .stats-grid { grid-template-columns: repeat(4, 1fr); }
 }
 .stat-card {
   display: flex; flex-direction: column; align-items: center;
@@ -1181,12 +1181,16 @@ ul { list-style: none; }
 .stat-icon-secondary { background: var(--secondary-soft); color: var(--secondary); }
 .stat-icon-tertiary  { background: rgba(126,48,0,0.08); color: #7e3000; }
 [data-theme="dark"] .stat-icon-tertiary { background: rgba(255,180,150,0.1); color: #ffb695; }
+.stat-icon-quaternary { background: rgba(21,128,61,0.08); color: #15803d; }
+[data-theme="dark"] .stat-icon-quaternary { background: rgba(74,222,128,0.1); color: #4ade80; }
 
 .stat-value { font-size: 2.5rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
 .stat-primary   { color: var(--primary); }
 .stat-secondary { color: var(--secondary); }
 .stat-tertiary  { color: #7e3000; }
 [data-theme="dark"] .stat-tertiary { color: #ffb695; }
+.stat-quaternary { color: #15803d; }
+[data-theme="dark"] .stat-quaternary { color: #4ade80; }
 .stat-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; color: var(--on-surface-var); }
 
 /* Conquistas */
